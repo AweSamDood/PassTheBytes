@@ -32,7 +32,7 @@ if not app.debug:
     if not os.path.exists('logs'):
         os.mkdir('logs')
 
-    file_handler = RotatingFileHandler('logs/filenest.log', maxBytes=10240, backupCount=10)
+    file_handler = RotatingFileHandler('logs/PassTheBytes.log', maxBytes=10240, backupCount=10)
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
     )
@@ -41,7 +41,7 @@ if not app.debug:
     app.logger.addHandler(file_handler)
 
     app.logger.setLevel(logging.INFO)
-    app.logger.info('FileNest startup')
+    app.logger.info('PassTheBytes startup')
 
 
 @app.errorhandler(RequestEntityTooLarge)
