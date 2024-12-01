@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Share File: {{ file.filename }}</h1>
+<form method="post">
+  <div class="form-group">
+    <label id="password">Password (optional):</label>
+    <input type="text" name="password" class="form-control" placeholder="Enter a password">
+  </div>
+  <div class="form-group">
+    <label id="expiration">Expiration Time in Hours (optional):</label>
+    <input type="number" name="expiration" class="form-control" placeholder="Enter number of hours">
+  </div>
+  <button type="submit" class="btn btn-primary">Share File</button>
+</form>
+{% endblock %}
