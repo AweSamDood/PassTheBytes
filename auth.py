@@ -3,12 +3,11 @@ import os
 from flask import Blueprint, redirect, url_for, session, request, flash, g, current_app
 from requests_oauthlib import OAuth2Session
 
+from decorators import login_required
 from models import db, User
 
 auth_bp = Blueprint('auth', __name__)
 
-client_id = os.getenv('CLIENT_ID')
-client_secret = os.getenv('CLIENT_SECRET')
 authorization_base_url = 'https://discord.com/api/oauth2/authorize'
 token_url = 'https://discord.com/api/oauth2/token'
 redirect_uri = 'http://localhost:5000/callback'
@@ -16,7 +15,7 @@ redirect_uri = 'http://localhost:5000/callback'
 
 @auth_bp.route('/login')
 def login():
-    discord = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=['identify', 'email'])
+    discord = OAuth2Session(current_app.config['CLIENT_ID'], redirect_uri=redirect_uri, scope=['identify', 'email'])
     authorization_url, state = discord.authorization_url(authorization_base_url)
     session['oauth_state'] = state
     return redirect(authorization_url)
@@ -30,9 +29,9 @@ def callback():
     if request.args.get('state') != session['oauth_state']:
         return "Error: OAuth state mismatch. Please start the login process again.", 400
 
-    discord = OAuth2Session(client_id, state=session['oauth_state'], redirect_uri=redirect_uri,
+    discord = OAuth2Session(current_app.config['CLIENT_ID'], state=session['oauth_state'], redirect_uri=redirect_uri,
                             scope=['identify', 'email'])
-    token = discord.fetch_token(token_url, client_secret=client_secret, authorization_response=request.url)
+    token = discord.fetch_token(token_url, client_secret=current_app.config['CLIENT_SECRET'], authorization_response=request.url)
     session['oauth_token'] = token
 
     # Fetch the user's profile information
@@ -54,13 +53,16 @@ def callback():
         db.session.commit()
 
     session['user_id'] = user.id
+    g.user = user
     current_app.logger.info(f'User {user.username} ({user.id}) logged in.')
     return redirect(url_for('files.files'))
 
 
 @auth_bp.route('/logout')
+@login_required
 def logout():
-    current_app.logger.info(f'User {g.user.username} ({g.user.id}) logged out.')
+    user = g.user
+    current_app.logger.info(f'User {user.username} ({user.id}) logged out.')
     session.clear()
     flash('You have been logged out.', 'success')
     return redirect(url_for('home.home'))
