@@ -5,7 +5,10 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 
 class Config:
-    MAX_CONTENT_LENGTH = 5 * 1024 * 1024 * 1024  # 5 GB limit for one file upload
+    five_gigs = 5 * 1024 * 1024 * 1024
+    MAX_CONTENT_LENGTH = os.getenv('MAX_CONTENT_LENGTH', five_gigs)
+    DEFAULT_QUOTA = os.getenv('DEFAULT_QUOTA', five_gigs)
+    ADMIN_DISCORD_USER_ID = os.getenv('ADMIN_DISCORD_USER_ID', 0)
     CLIENT_ID = os.getenv('CLIENT_ID')
     CLIENT_SECRET = os.getenv('CLIENT_SECRET')
     SECRET_KEY = os.getenv('SECRET_KEY')

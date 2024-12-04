@@ -37,17 +37,21 @@ def callback():
     # Fetch the user's profile information
     discord_user = discord.get('https://discord.com/api/users/@me').json()
     session['discord_user'] = discord_user
+    print(discord_user)
 
     # Check if the user exists in the database
     user = User.query.filter_by(discord_id=discord_user['id']).first()
     if not user:
         current_app.logger.info(f'User {discord_user["username"]} ({discord_user["id"]}) added to the database.')
-        # TODO - Create admin user at app start up
+        admin = discord_user['id'] == current_app.config['ADMIN_DISCORD_USER_ID']
+        if admin:
+            current_app.logger.info(f'User {discord_user["username"]} ({discord_user["id"]}) is an admin.')
         user = User(
             discord_id=discord_user['id'],
             username=discord_user['username'],
             email=discord_user.get('email'),
-            is_admin=False
+            is_admin=admin,
+            quota=current_app.config['DEFAULT_QUOTA']
         )
         db.session.add(user)
         db.session.commit()

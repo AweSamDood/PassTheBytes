@@ -9,7 +9,7 @@ class User(db.Model):
     discord_id = db.Column(db.String(50), unique=True, nullable=False)
     username = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120))
-    quota = db.Column(db.Integer, default=5 * 1024 * 1024 * 1024)  # 5 GB default quota
+    quota = db.Column(db.Integer, default=0)
     used_space = db.Column(db.Integer, default=0)
     is_admin = db.Column(db.Boolean, default=False)
     files = db.relationship('File', backref='user', lazy=True)
