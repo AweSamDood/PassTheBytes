@@ -1,5 +1,3 @@
-import os
-
 from flask import Blueprint, redirect, url_for, session, request, flash, g, current_app
 from requests_oauthlib import OAuth2Session
 
@@ -10,11 +8,12 @@ auth_bp = Blueprint('auth', __name__)
 
 authorization_base_url = 'https://discord.com/api/oauth2/authorize'
 token_url = 'https://discord.com/api/oauth2/token'
-redirect_uri = 'http://localhost:5000/callback'
+
 
 
 @auth_bp.route('/login')
 def login():
+    redirect_uri = current_app.config['REDIRECT_URI']
     discord = OAuth2Session(current_app.config['CLIENT_ID'], redirect_uri=redirect_uri, scope=['identify', 'email'])
     authorization_url, state = discord.authorization_url(authorization_base_url)
     session['oauth_state'] = state
@@ -29,6 +28,7 @@ def callback():
     if request.args.get('state') != session['oauth_state']:
         return "Error: OAuth state mismatch. Please start the login process again.", 400
 
+    redirect_uri = current_app.config['REDIRECT_URI']
     discord = OAuth2Session(current_app.config['CLIENT_ID'], state=session['oauth_state'], redirect_uri=redirect_uri,
                             scope=['identify', 'email'])
     token = discord.fetch_token(token_url, client_secret=current_app.config['CLIENT_SECRET'], authorization_response=request.url)
