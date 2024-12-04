@@ -2,10 +2,93 @@
 
 {% block content %}
 <h1>Upload File</h1>
-<form method="post" enctype="multipart/form-data">
-  <div class="form-group">
-    <input type="file" name="file" class="form-control-file">
-  </div>
-  <button type="submit" class="btn btn-primary">Upload</button>
-</form>
+
+<div>
+    <input type="file" id="fileInput" class="form-control-file">
+    <p id="fileInfo"></p> <!-- Display file size and name -->
+    <div id="progressContainer" style="display: none;">
+        <progress id="progressBar" value="0" max="100" style="width: 100%;"></progress>
+        <p id="progressText">0% uploaded (0 MB / 0 MB)</p>
+    </div>
+</div>
+
+<button id="uploadBtn" class="btn btn-primary" disabled>Upload</button>
+
+<script>
+    // File input event to display file information
+    document.getElementById('fileInput').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        const fileInfo = document.getElementById('fileInfo');
+        const uploadBtn = document.getElementById('uploadBtn');
+
+        if (file) {
+            const fileSize = (file.size / 1024 / 1024).toFixed(2); // File size in MB
+            fileInfo.textContent = `Selected File: ${file.name} (${fileSize} MB)`;
+            uploadBtn.disabled = false;
+        } else {
+            fileInfo.textContent = '';
+            uploadBtn.disabled = true;
+        }
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', () => {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) {
+            alert('Please select a file.');
+            return;
+        }
+
+        async function uploadFile(file) {
+            const chunkSize = 50 * 1024 * 1024; // 50 MB
+            const totalChunks = Math.ceil(file.size / chunkSize);
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progressContainer = document.getElementById('progressContainer');
+            progressContainer.style.display = 'block';
+
+            const totalFileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+
+            let uploadedSize = 0; // Track uploaded size in bytes
+
+            for (let i = 0; i < totalChunks; i++) {
+                const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+                const formData = new FormData();
+                formData.append('chunk', chunk);
+                formData.append('chunkIndex', i);
+                formData.append('totalChunks', totalChunks);
+                formData.append('fileName', file.name);
+
+                try {
+                    const response = await fetch('/upload_chunk', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const result = await response.json();
+                    if (!result.success) {
+                        alert(`Error uploading chunk ${i}: ${result.error}`);
+                        return;
+                    }
+
+                    // Update uploaded size and progress
+                    uploadedSize += chunk.size;
+                    const uploadedSizeMB = (uploadedSize / 1024 / 1024).toFixed(2);
+                    const progressPercentage = Math.round((uploadedSize / file.size) * 100);
+
+                    progressBar.value = progressPercentage;
+                    progressText.textContent = `${progressPercentage}% uploaded (${uploadedSizeMB} MB / ${totalFileSizeMB} MB)`;
+                } catch (error) {
+                    console.error(`Error uploading chunk ${i}:`, error);
+                    alert('Failed to upload file. Please try again.');
+                    return;
+                }
+            }
+
+            progressText.textContent = `Upload complete! (${totalFileSizeMB} MB)`;
+            alert('File upload completed successfully!');
+        }
+
+        uploadFile(file);
+    });
+</script>
 {% endblock %}

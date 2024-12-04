@@ -1,75 +1,89 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app, send_from_directory
+import os
+import shutil
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app, send_from_directory, \
+    jsonify
 from werkzeug.utils import secure_filename
 
 from decorators import login_required
-from models import db, User, File
 from helpers import allowed_file
-import os
+from models import db, User, File
 
 files_bp = Blueprint('files', __name__)
 
-
-@files_bp.route('/upload', methods=['GET', 'POST'])
+@files_bp.route('/upload_chunk', methods=['POST'])
 @login_required
-def upload():
+def upload_chunk():
     user = g.user
-    if request.method == 'POST':
-        current_app.logger.info(f'User {user.username} ({user.id}) is uploading a file.')
-        file = request.files.get('file')
-        if file and allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
-            filename = secure_filename(file.filename)
-            user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
-            os.makedirs(user_folder, exist_ok=True)
-            file_path = os.path.join(user_folder, filename)
 
-            # Check if file with same name exists
-            if File.query.filter_by(filename=filename, user_id=user.id).first():
-                current_app.logger.warning(
-                    f'User {user.username} ({user.id}) attempted to upload a file with the same name, {filename}')
-                flash('File with the same name already exists.', 'error')
-                return redirect(url_for('files.upload'))
+    # Retrieve metadata and chunk from the request
+    chunk = request.files.get('chunk')
+    chunk_index = int(request.form.get('chunkIndex'))
+    total_chunks = int(request.form.get('totalChunks'))
+    file_name = request.form.get('fileName')
+    chunk_size = 50 * 1024 * 1024
 
-            # Save the file to a temporary location
-            temp_file_path = file_path + '.tmp'
-            try:
-                file.save(temp_file_path)
-            except Exception as e:
-                current_app.logger.error(f'Error saving file for user {user.username} ({user.id}): {e}')
-                flash('Error saving file.', 'error')
-                return redirect(url_for('files.upload'))
+    user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
+    temp_dir = os.path.join(user_folder, f'{secure_filename(file_name)}_temp')
+    os.makedirs(temp_dir, exist_ok=True)
 
-            file_size = os.path.getsize(temp_file_path)
+    # Calculate total expected size of the file
+    total_file_size = chunk_size * total_chunks
+    estimated_new_space_usage = user.used_space + total_file_size
 
-            # Check user's quota
-            if user.used_space + file_size > user.quota:
-                os.remove(temp_file_path)
-                current_app.logger.warning(f'User {user.username} ({user.id}) exceeded their storage quota.')
-                flash('Storage quota exceeded.', 'error')
-                return redirect(url_for('files.upload'))
+    # Check if user quota is exceeded
+    if estimated_new_space_usage > user.quota:
+        current_app.logger.warning(
+            f"User {user.username} ({user.id}) exceeded quota. Used: {user.used_space}, "
+            f"New File: {total_file_size}, Quota: {user.quota}"
+        )
+        # Cleanup the temporary directory if this is the first chunk
+        if chunk_index == 0:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        return jsonify({"error": "Storage quota exceeded"}), 403
 
-            os.rename(temp_file_path, file_path)
+    # Save the chunk to a temporary directory
+    chunk_path = os.path.join(temp_dir, f'chunk_{chunk_index}')
+    try:
+        with open(chunk_path, 'wb') as f:
+            f.write(chunk.read())
+    except Exception as e:
+        current_app.logger.error(f"Error saving chunk {chunk_index} for file {file_name}: {e}")
+        return jsonify({"error": "Failed to save chunk"}), 500
 
-            user.used_space += file_size
-            db.session.commit()
+    # Check if all chunks are received
+    if len(os.listdir(temp_dir)) == total_chunks:
+        final_file_path = os.path.join(user_folder, secure_filename(file_name))
+        try:
+            with open(final_file_path, 'wb') as final_file:
+                for i in range(total_chunks):
+                    chunk_file_path = os.path.join(temp_dir, f'chunk_{i}')
+                    with open(chunk_file_path, 'rb') as chunk_file:
+                        shutil.copyfileobj(chunk_file, final_file)
+            # Cleanup
+            shutil.rmtree(temp_dir)
+        except Exception as e:
+            current_app.logger.error(f"Error assembling file {file_name}: {e}")
+            return jsonify({"error": "Failed to assemble file"}), 500
 
-            new_file = File(
-                filename=filename,
-                filepath=file_path,
-                filesize=file_size,
-                user_id=user.id
-            )
-            db.session.add(new_file)
-            db.session.commit()
+        # Update user storage and save the file record in the database
+        file_size = os.path.getsize(final_file_path)
+        user.used_space += file_size
+        db.session.commit()
 
-            flash('File uploaded successfully.', 'success')
-            current_app.logger.info(
-                f'User {user.username} ({user.id}) uploaded file {filename} ({file_size / 1024 / 1024:.2f} MB)')
-            return redirect(url_for('files.upload'))
-        else:
-            flash('Invalid file or no file selected.', 'error')
-            return redirect(url_for('files.upload'))
+        new_file = File(
+            filename=secure_filename(file_name),
+            filepath=final_file_path,
+            filesize=file_size,
+            user_id=user.id,
+        )
+        db.session.add(new_file)
+        db.session.commit()
 
-    return render_template('upload.html')
+        return jsonify({"success": True, "message": "File upload completed"})
+
+    return jsonify({"success": True, "message": "Chunk uploaded successfully"})
+
+
 
 
 @files_bp.route('/files')
