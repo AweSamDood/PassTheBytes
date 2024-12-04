@@ -106,7 +106,7 @@ def upload_chunk():
     chunk_index = int(request.form.get('chunkIndex'))
     total_chunks = int(request.form.get('totalChunks'))
     file_name = request.form.get('fileName')
-    chunk_size = 50 * 1024 * 1024
+    chunk_size = 4 * 1024 * 1024
 
     user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
     temp_dir = os.path.join(user_folder, f'{secure_filename(file_name)}_temp')

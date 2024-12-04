@@ -39,7 +39,7 @@
         }
 
         async function uploadFile(file) {
-            const chunkSize = 50 * 1024 * 1024; // 50 MB
+            const chunkSize = 4 * 1024 * 1024; // 50 MB
             const totalChunks = Math.ceil(file.size / chunkSize);
             const progressBar = document.getElementById('progressBar');
             const progressText = document.getElementById('progressText');
