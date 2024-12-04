@@ -1,80 +1,87 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>My Files</h1>
+    <h1>My Files</h1>
 
-<!-- Upload Button -->
-<a href="{{ url_for('files.upload') }}" class="btn btn-primary">Upload File</a>
+    <!-- Storage Usage -->
+    <p>
+        <strong>Storage Used:</strong> {{ '%.2f' % (user.used_space / 1024 / 1024) }} MB
+        / {{ '%.2f' % (user.quota / 1024 / 1024) }} MB
+    </p>
 
-<!-- Logout Button -->
-<a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Logout</a>
+    <!-- Upload Button -->
+    <a href="{{ url_for('files.upload') }}" class="btn btn-primary">Upload File</a>
 
-<!-- Flash Messages -->
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-<div class="flash-messages">
-    {% for category, message in messages %}
-    <div class="alert alert-{{ category }}">
-        {{ message }}
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
-{% endwith %}
+    <!-- Logout Button -->
+    <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Logout</a>
 
-<!-- Files Table -->
-<table class="table">
-    <thead>
-    <tr>
-        <th>Filename</th>
-        <th>Size</th>
-        <th>Shared</th>
-        <th>Actions</th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for file in files %}
-    <tr>
-        <!--        Filename-->
-        <td>{{ file.filename }}</td>
-        <!--        Size-->
-        <td>{{ '%.2f' % (file.filesize/1024/1024) }} MB</td>
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
 
-        <!--        Shared-->
-        <td>
-            {% if file.is_public %}
-            {% if not file.is_expired %}
-            <span class="badge badge-success">Public</span>
-            {% else %}
-            <span class="badge badge-warning">Expired</span>
-            {% endif %}
-            {% else %}
-            <span class="badge badge-secondary">Private</span>
-            {% endif %}
-        </td>
-        <!--        Actions-->
-        <td>
-            <!-- Sharing Actions -->
-            {% if file.is_public and not file.is_expired %}
-            <button class="btn btn-sm btn-info copy-link-btn"
-                    data-link="{{ url_for('share.access_shared_file', share_url=file.share_url, _external=True) }}">
-                Copy Link
-            </button>
-            <a href="{{ url_for('share.revoke_share', file_id=file.id) }}" class="btn btn-sm btn-warning">Revoke
-                Share</a>
-            {% else %}
-            <a href="{{ url_for('share.share_file', file_id=file.id) }}" class="btn btn-sm btn-info">Share</a>
-            {% endif %}
+    <!-- Files Table -->
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Filename</th>
+            <th>Size</th>
+            <th>Shared</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for file in files %}
+            <tr>
+                <!-- Filename -->
+                <td>{{ file.filename }}</td>
+                <!-- Size -->
+                <td>{{ '%.2f' % (file.filesize / 1024 / 1024) }} MB</td>
 
-            <!-- Download and Delete Actions -->
-            <a href="{{ url_for('files.download', file_id=file.id) }}" class="btn btn-sm btn-success">Download</a>
-            <form action="{{ url_for('files.delete', file_id=file.id) }}" method="post" style="display:inline;">
-                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-            </form>
-        </td>
+                <!-- Shared -->
+                <td>
+                    {% if file.is_public %}
+                        {% if not file.is_expired %}
+                            <span class="badge badge-success">Public</span>
+                        {% else %}
+                            <span class="badge badge-warning">Expired</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge badge-secondary">Private</span>
+                    {% endif %}
+                </td>
+                <!-- Actions -->
+                <td>
+                    <!-- Sharing Actions -->
+                    {% if file.is_public and not file.is_expired %}
+                        <button class="btn btn-sm btn-info copy-link-btn"
+                                data-link="{{ url_for('share.access_shared_file', share_url=file.share_url, _external=True) }}">
+                            Copy Link
+                        </button>
+                        <a href="{{ url_for('share.revoke_share', file_id=file.id) }}" class="btn btn-sm btn-warning">Revoke
+                            Share</a>
+                    {% else %}
+                        <a href="{{ url_for('share.share_file', file_id=file.id) }}"
+                           class="btn btn-sm btn-info">Share</a>
+                    {% endif %}
 
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
+                    <!-- Download and Delete Actions -->
+                    <a href="{{ url_for('files.download', file_id=file.id) }}"
+                       class="btn btn-sm btn-success">Download</a>
+                    <form action="{{ url_for('files.delete', file_id=file.id) }}" method="post" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
 {% endblock %}
