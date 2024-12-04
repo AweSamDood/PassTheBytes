@@ -4,6 +4,7 @@ from werkzeug.exceptions import RequestEntityTooLarge, HTTPException
 
 from config import Config
 from files import files_bp
+from helpers import print_loaded_config
 from home import home_bp
 from models import db
 from auth import auth_bp
@@ -15,6 +16,8 @@ from share import share_bp
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+print_loaded_config(app)
 
 db.init_app(app)
 migrate = Migrate(app, db)
