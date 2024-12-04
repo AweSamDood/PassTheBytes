@@ -10,6 +10,92 @@ from models import db, User, File
 
 files_bp = Blueprint('files', __name__)
 
+
+@files_bp.route('/upload', methods=['GET', 'POST'])
+@login_required
+def upload():
+    user = g.user
+    if request.method == 'POST':
+        current_app.logger.info(f'User {user.username} ({user.id}) is uploading a file.')
+        current_app.logger.info(f'user.quota type: {type(user.quota)}, user.used_space type: {type(user.used_space)}')
+        current_app.logger.info('Attempting to retrieve file from request...')
+        file = request.files.get('file')
+        current_app.logger.info(f'File retrieved: {file}')
+
+        current_app.logger.info(f'file: {file}')
+
+        file = request.files.get('file')
+        if not file or file.filename == '':
+            current_app.logger.warning('No file selected for upload.')
+            flash('No file selected. Please choose a file to upload.', 'error')
+            return redirect(url_for('files.upload'))
+
+        if file and allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
+            filename = secure_filename(file.filename)
+            user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
+            os.makedirs(user_folder, exist_ok=True)
+            file_path = os.path.join(user_folder, filename)
+
+            # Check if file with same name exists
+            if File.query.filter_by(filename=filename, user_id=user.id).first():
+                current_app.logger.warning(
+                    f'User {user.username} ({user.id}) attempted to upload a file with the same name, {filename}')
+                flash('File with the same name already exists.', 'error')
+                return redirect(url_for('files.upload'))
+
+            # Save the file to a temporary location
+            temp_file_path = file_path + '.tmp'
+            try:
+                file.save(temp_file_path)
+            except Exception as e:
+                current_app.logger.error(f'Error saving file for user {user.username} ({user.id}): {e}')
+                flash('Error saving file.', 'error')
+                return redirect(url_for('files.upload'))
+
+            file_size = os.path.getsize(temp_file_path)
+
+            # Ensure correct types for comparison
+            try:
+                user_quota = int(user.quota)
+                user_used_space = int(user.used_space)
+            except ValueError as e:
+                current_app.logger.error(f"Error converting quota or used space to integer: {e}")
+                flash('Internal server error. Please contact support.', 'error')
+                return redirect(url_for('files.upload'))
+
+            # Check user's quota
+            if user_used_space + file_size > user_quota:
+                os.remove(temp_file_path)
+                current_app.logger.warning(f'User {user.username} ({user.id}) exceeded their storage quota.')
+                flash('Storage quota exceeded.', 'error')
+                return redirect(url_for('files.upload'))
+
+            os.rename(temp_file_path, file_path)
+
+            user.used_space = user_used_space + file_size
+            db.session.commit()
+
+            new_file = File(
+                filename=filename,
+                filepath=file_path,
+                filesize=file_size,
+                user_id=user.id
+            )
+            db.session.add(new_file)
+            db.session.commit()
+
+            flash('File uploaded successfully.', 'success')
+            current_app.logger.info(
+                f'User {user.username} ({user.id}) uploaded file {filename} ({file_size / 1024 / 1024:.2f} MB)')
+            return redirect(url_for('files.upload'))
+        else:
+            flash('Invalid file type or no file selected.', 'error')
+            return redirect(url_for('files.upload'))
+
+    return render_template('upload.html')
+
+
+
 @files_bp.route('/upload_chunk', methods=['POST'])
 @login_required
 def upload_chunk():
