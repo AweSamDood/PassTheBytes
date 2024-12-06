@@ -81,4 +81,6 @@ def internal_server_error(error):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
     app.run(debug=False, use_reloader=False)
