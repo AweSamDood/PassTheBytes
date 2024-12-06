@@ -11,7 +11,7 @@ class Config:
     ADMIN_DISCORD_USER_ID = os.getenv('ADMIN_DISCORD_USER_ID', 0)
     CLIENT_ID = os.getenv('CLIENT_ID')
     CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-    SECRET_KEY = os.getenv('SECRET_KEY')
+    SECRET_KEY = os.getenv('SECRET_KEY','supersecretkey')
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'app.db'))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
@@ -20,3 +20,4 @@ class Config:
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PREMIUM_DISCORD_USER_ID = os.getenv('PREMIUM_DISCORD_USER_ID', 0)
+    PREFERRED_URL_SCHEME = 'https'
