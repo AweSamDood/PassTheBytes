@@ -1,7 +1,6 @@
 from flask import Blueprint, redirect, url_for, session, request, flash, g, current_app
 from requests_oauthlib import OAuth2Session
 
-import app
 from decorators import login_required
 from models import db, User
 
