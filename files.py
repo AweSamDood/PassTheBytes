@@ -1,5 +1,9 @@
 import os
 import shutil
+import threading
+import time
+import json
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app, send_from_directory, \
     jsonify
 from werkzeug.utils import secure_filename
@@ -9,168 +13,203 @@ from helpers import allowed_file
 from models import db, User, File
 
 files_bp = Blueprint('files', __name__)
+CLEANUP_INTERVAL = 3600  # 1 hour
+STALE_THRESHOLD = 7200    # 2 hours
 
+cleanup_lock = threading.Lock()
 
-@files_bp.route('/upload', methods=['GET', 'POST'])
-@login_required
-def upload():
-    user = g.user
-    if request.method == 'POST':
-        current_app.logger.info(f'User {user.username} ({user.id}) is uploading a file.')
-        current_app.logger.info(f'user.quota type: {type(user.quota)}, user.used_space type: {type(user.used_space)}')
-        current_app.logger.info('Attempting to retrieve file from request...')
-        file = request.files.get('file')
-        current_app.logger.info(f'File retrieved: {file}')
-
-        current_app.logger.info(f'file: {file}')
-
-        file = request.files.get('file')
-        if not file or file.filename == '':
-            current_app.logger.warning('No file selected for upload.')
-            flash('No file selected. Please choose a file to upload.', 'error')
-            return redirect(url_for('files.upload'))
-
-        if file and allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
-            filename = secure_filename(file.filename)
-            user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
-            os.makedirs(user_folder, exist_ok=True)
-            file_path = os.path.join(user_folder, filename)
-
-            # Check if file with same name exists
-            if File.query.filter_by(filename=filename, user_id=user.id).first():
-                current_app.logger.warning(
-                    f'User {user.username} ({user.id}) attempted to upload a file with the same name, {filename}')
-                flash('File with the same name already exists.', 'error')
-                return redirect(url_for('files.upload'))
-
-            # Save the file to a temporary location
-            temp_file_path = file_path + '.tmp'
-            try:
-                file.save(temp_file_path)
-            except Exception as e:
-                current_app.logger.error(f'Error saving file for user {user.username} ({user.id}): {e}')
-                flash('Error saving file.', 'error')
-                return redirect(url_for('files.upload'))
-
-            file_size = os.path.getsize(temp_file_path)
-
-            # Ensure correct types for comparison
-            try:
-                user_quota = int(user.quota)
-                user_used_space = int(user.used_space)
-            except ValueError as e:
-                current_app.logger.error(f"Error converting quota or used space to integer: {e}")
-                flash('Internal server error. Please contact support.', 'error')
-                return redirect(url_for('files.upload'))
-
-            # Check user's quota
-            if user_used_space + file_size > user_quota:
-                os.remove(temp_file_path)
-                current_app.logger.warning(f'User {user.username} ({user.id}) exceeded their storage quota.')
-                flash('Storage quota exceeded.', 'error')
-                return redirect(url_for('files.upload'))
-
-            os.rename(temp_file_path, file_path)
-
-            user.used_space = user_used_space + file_size
-            db.session.commit()
-
-            new_file = File(
-                filename=filename,
-                filepath=file_path,
-                filesize=file_size,
-                user_id=user.id
-            )
-            db.session.add(new_file)
-            db.session.commit()
-
-            flash('File uploaded successfully.', 'success')
-            current_app.logger.info(
-                f'User {user.username} ({user.id}) uploaded file {filename} ({file_size / 1024 / 1024:.2f} MB)')
-            return redirect(url_for('files.upload'))
-        else:
-            flash('Invalid file type or no file selected.', 'error')
-            return redirect(url_for('files.upload'))
-
-    return render_template('upload.html')
-
-
+active_uploads = {}
 
 @files_bp.route('/upload_chunk', methods=['POST'])
 @login_required
 def upload_chunk():
     user = g.user
 
-    # Retrieve metadata and chunk from the request
     chunk = request.files.get('chunk')
-    chunk_index = int(request.form.get('chunkIndex'))
-    total_chunks = int(request.form.get('totalChunks'))
+    chunk_index = request.form.get('chunkIndex')
+    total_chunks = request.form.get('totalChunks')
     file_name = request.form.get('fileName')
-    chunk_size = 4 * 1024 * 1024
+    upload_id = request.form.get('uploadId')
+    file_size = request.form.get('fileSize')
 
+    if not all([chunk, chunk_index, total_chunks, file_name, upload_id, file_size]):
+        current_app.logger.warning('Missing required upload parameters.')
+        return jsonify({"success": False, "error": "Missing required upload parameters."}), 400
+
+    try:
+        chunk_index = int(chunk_index)
+        total_chunks = int(total_chunks)
+        file_size = int(file_size)
+    except ValueError:
+        current_app.logger.warning('Invalid chunkIndex, totalChunks, or fileSize value.')
+        return jsonify({"success": False, "error": "Invalid chunkIndex, totalChunks, or fileSize value."}), 400
+
+    if not allowed_file(file_name, current_app.config['ALLOWED_EXTENSIONS']):
+        current_app.logger.warning(f'File type not allowed: {file_name}')
+        return jsonify({"success": False, "error": "File type not allowed."}), 400
+
+    filename = secure_filename(file_name)
     user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
-    temp_dir = os.path.join(user_folder, f'{secure_filename(file_name)}_temp')
+    os.makedirs(user_folder, exist_ok=True)
+
+    if user.id not in active_uploads:
+        active_uploads[user.id] = {}
+
+    if upload_id not in active_uploads[user.id]:
+        # Before starting the upload, check if adding this file would exceed the quota
+        projected_used_space = user.used_space + file_size
+        # Additionally, add the sizes of other active uploads
+        for uid, info in active_uploads[user.id].items():
+            projected_used_space += info.get('file_size', 0)
+        if projected_used_space > user.quota:
+            current_app.logger.warning(
+                f'User {user.username} ({user.id}) attempted to upload a file that exceeds their quota.')
+            return jsonify({"success": False, "error": "Uploading this file would exceed your storage quota."}), 403
+
+        # Reserve space for this upload
+        active_uploads[user.id][upload_id] = {'file_size': file_size}
+
+    temp_dir = os.path.join(user_folder, f'{upload_id}_temp')
     os.makedirs(temp_dir, exist_ok=True)
 
-    # Calculate total expected size of the file
-    total_file_size = chunk_size * total_chunks
-    estimated_new_space_usage = user.used_space + total_file_size
+    # Save the chunk to the temporary directory
+    chunk_filename = f'chunk_{chunk_index}'
+    chunk_path = os.path.join(temp_dir, chunk_filename)
 
-    # Check if user quota is exceeded
-    if estimated_new_space_usage > user.quota:
-        current_app.logger.warning(
-            f"User {user.username} ({user.id}) exceeded quota. Used: {user.used_space}, "
-            f"New File: {total_file_size}, Quota: {user.quota}"
-        )
-        # Cleanup the temporary directory if this is the first chunk
-        if chunk_index == 0:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        return jsonify({"error": "Storage quota exceeded"}), 403
-
-    # Save the chunk to a temporary directory
-    chunk_path = os.path.join(temp_dir, f'chunk_{chunk_index}')
     try:
-        with open(chunk_path, 'wb') as f:
-            f.write(chunk.read())
+        chunk.save(chunk_path)
+        # Log at every 25% of chunks uploaded
+        if total_chunks >= 4 and (chunk_index + 1) % (total_chunks // 4) == 0:
+            current_app.logger.info(f'Chunk {chunk_index + 1}/{total_chunks} saved for upload ID {upload_id}.')
     except Exception as e:
-        current_app.logger.error(f"Error saving chunk {chunk_index} for file {file_name}: {e}")
-        return jsonify({"error": "Failed to save chunk"}), 500
+        current_app.logger.error(f'Error saving chunk {chunk_index + 1} for upload ID {upload_id}: {e}')
+        return jsonify({"success": False, "error": "Failed to save chunk."}), 500
 
-    # Check if all chunks are received
-    if len(os.listdir(temp_dir)) == total_chunks:
-        final_file_path = os.path.join(user_folder, secure_filename(file_name))
+    # Update or create a tracking file to monitor upload progress
+    tracking_file = os.path.join(temp_dir, 'tracking.json')
+    try:
+        if os.path.exists(tracking_file):
+            with open(tracking_file, 'r') as tf:
+                tracking_data = json.load(tf)
+        else:
+            tracking_data = {
+                'uploaded_chunks': [],
+                'last_updated': time.time(),
+                'file_size': file_size
+            }
+
+        if chunk_index not in tracking_data['uploaded_chunks']:
+            tracking_data['uploaded_chunks'].append(chunk_index)
+            tracking_data['last_updated'] = time.time()
+
+        with open(tracking_file, 'w') as tf:
+            json.dump(tracking_data, tf)
+    except Exception as e:
+        current_app.logger.error(f'Error updating tracking file for upload ID {upload_id}: {e}')
+        return jsonify({"success": False, "error": "Failed to update tracking data."}), 500
+
+    # Check if all chunks have been uploaded
+    if len(tracking_data['uploaded_chunks']) >= total_chunks:
+        final_file_path = os.path.join(user_folder, filename)
         try:
             with open(final_file_path, 'wb') as final_file:
                 for i in range(total_chunks):
                     chunk_file_path = os.path.join(temp_dir, f'chunk_{i}')
+                    if not os.path.exists(chunk_file_path):
+                        current_app.logger.error(f'Missing chunk {i} for upload ID {upload_id}.')
+                        return jsonify({"success": False, "error": f"Missing chunk {i}."}), 400
                     with open(chunk_file_path, 'rb') as chunk_file:
                         shutil.copyfileobj(chunk_file, final_file)
-            # Cleanup
+            # Cleanup: Remove the temporary directory
             shutil.rmtree(temp_dir)
+            current_app.logger.info(f'Upload ID {upload_id} assembled successfully into {final_file_path}.')
+
+            # Update user storage and save the file record in the database
+            file_size = os.path.getsize(final_file_path)
+            user.used_space += file_size
+            db.session.commit()
+
+            new_file = File(
+                filename=filename,
+                filepath=final_file_path,
+                filesize=file_size,
+                user_id=user.id
+            )
+            db.session.add(new_file)
+            db.session.commit()
+
+            current_app.logger.info(f'User {user.username} ({user.id}) uploaded file {filename} ({file_size / 1024 / 1024:.2f} MB)')
+
+            # Remove the upload from active_uploads
+            if user.id in active_uploads and upload_id in active_uploads[user.id]:
+                del active_uploads[user.id][upload_id]
+
+            return jsonify({"success": True, "message": "File upload completed successfully."}), 200
         except Exception as e:
-            current_app.logger.error(f"Error assembling file {file_name}: {e}")
-            return jsonify({"error": "Failed to assemble file"}), 500
+            current_app.logger.error(f'Error assembling file for upload ID {upload_id}: {e}')
+            return jsonify({"success": False, "error": "Failed to assemble file."}), 500
 
-        # Update user storage and save the file record in the database
-        file_size = os.path.getsize(final_file_path)
-        user.used_space += file_size
-        db.session.commit()
+    return jsonify({"success": True, "message": "Chunk uploaded successfully."}), 200
 
-        new_file = File(
-            filename=secure_filename(file_name),
-            filepath=final_file_path,
-            filesize=file_size,
-            user_id=user.id,
-        )
-        db.session.add(new_file)
-        db.session.commit()
+@files_bp.route('/cancel_upload', methods=['POST'])
+@login_required
+def cancel_upload():
+    user = g.user
+    data = request.get_json()
+    upload_id = data.get('upload_id')
 
-        return jsonify({"success": True, "message": "File upload completed"})
+    if not upload_id:
+        current_app.logger.warning('Cancellation request missing upload_id.')
+        return jsonify({"success": False, "error": "Missing upload_id."}), 400
 
-    return jsonify({"success": True, "message": "Chunk uploaded successfully"})
+    user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
+    temp_dir = os.path.join(user_folder, f'{upload_id}_temp')
 
+    if os.path.exists(temp_dir):
+        try:
+            shutil.rmtree(temp_dir)
+            current_app.logger.info(f'Cancelled and removed temporary files for upload ID {upload_id}.')
 
+            # Remove the upload from active_uploads
+            if user.id in active_uploads and upload_id in active_uploads[user.id]:
+                del active_uploads[user.id][upload_id]
 
+            return jsonify({"success": True, "message": "Upload cancelled and temporary files removed."}), 200
+        except Exception as e:
+            current_app.logger.error(f'Error removing temp directory for upload ID {upload_id}: {e}')
+            return jsonify({"success": False, "error": "Failed to remove temporary files."}), 500
+    else:
+        current_app.logger.warning(f'Temp directory for upload ID {upload_id} does not exist.')
+        return jsonify({"success": False, "error": "Upload session not found."}), 404
+
+def cleanup_stale_temp_dirs():
+    while True:
+        with cleanup_lock:
+            upload_folders = [f for f in os.listdir(current_app.config['UPLOAD_FOLDER'])
+                              if os.path.isdir(os.path.join(current_app.config['UPLOAD_FOLDER'], f))]
+            for folder in upload_folders:
+                if folder.endswith('_temp'):
+                    temp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], folder)
+                    tracking_file = os.path.join(temp_dir, 'tracking.json')
+                    if os.path.exists(tracking_file):
+                        try:
+                            with open(tracking_file, 'r') as tf:
+                                tracking_data = json.load(tf)
+                                last_updated = tracking_data.get('last_updated', 0)
+                                if time.time() - last_updated > STALE_THRESHOLD:
+                                    shutil.rmtree(temp_dir, ignore_errors=True)
+                                    current_app.logger.info(f'Removed stale temp directory: {temp_dir}')
+                        except Exception as e:
+                            current_app.logger.error(f'Error reading tracking file {tracking_file}: {e}')
+                            shutil.rmtree(temp_dir, ignore_errors=True)
+                            current_app.logger.info(f'Removed corrupted temp directory: {temp_dir}')
+        time.sleep(CLEANUP_INTERVAL)
+
+# Start the cleanup thread when the blueprint is registered
+@files_bp.record
+def on_load(state):
+    cleanup_thread = threading.Thread(target=cleanup_stale_temp_dirs, daemon=True)
+    cleanup_thread.start()
 
 @files_bp.route('/files')
 @login_required
@@ -200,7 +239,7 @@ def download(file_id):
     if file.user_id != user.id:
         current_app.logger.warning(
             f'User {user.username} ({user.id}) attempted to download file {file.filename} ({file_id})')
-        return 'Access denied.'
+        return 'Access denied.', 403
 
     return send_from_directory(os.path.dirname(file.filepath), os.path.basename(file.filepath), as_attachment=True)
 

@@ -7,26 +7,260 @@
     <p>
         <strong>Storage Used:</strong> {{ '%.2f' % (user.used_space / 1024 / 1024) }} MB
         / {{ '%.2f' % (user.quota / 1024 / 1024) }} MB
+        ({{ '%.2f' % ((user.used_space / user.quota) * 100) }}% used)
     </p>
-
-    <!-- Upload Button -->
-    <a href="{{ url_for('files.upload') }}" class="btn btn-primary">Upload File</a>
-
-    <!-- Logout Button -->
-    <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary">Logout</a>
 
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             <div class="flash-messages">
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
                         {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
                     </div>
                 {% endfor %}
             </div>
         {% endif %}
     {% endwith %}
+
+    <!-- Chunked Upload Interface -->
+    <div class="upload-section my-4">
+        <h2>Upload File</h2>
+
+        <div>
+            <input type="file" id="fileInput" class="form-control-file">
+            <p id="fileInfo"></p> <!-- Display file size and name -->
+            <div id="progressContainer" style="display: none;">
+                <progress id="progressBar" value="0" max="100" style="width: 100%;"></progress>
+                <p id="progressText">0% uploaded (0 MB / 0 MB)</p>
+                <p id="processingText" style="display: none;">Processing: 0%</p>
+            </div>
+        </div>
+
+        <div class="mt-2">
+            <button id="uploadBtn" class="btn btn-primary" disabled>Upload</button>
+            <button id="cancelBtn" class="btn btn-danger" disabled>Cancel Upload</button>
+        </div>
+    </div>
+
+    <script>
+        let abortController = null;
+        let uploadCancelled = false;
+        let uploadId = null; // To store the unique upload ID
+
+        function generateUUID() {
+            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+                (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+            );
+        }
+
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            const fileInfo = document.getElementById('fileInfo');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+
+            if (file) {
+                const fileSizeMB = (file.size / 1024 / 1024).toFixed(2); // File size in MB
+                fileInfo.textContent = `Selected File: ${file.name} (${fileSizeMB} MB)`;
+
+                // Check if uploading this file would exceed the user's quota
+                const quotaMB = {{ (user.quota / 1024 / 1024) }};
+                const usedSpaceMB = {{ (user.used_space / 1024 / 1024) }};
+                const remainingSpaceMB = quotaMB - usedSpaceMB;
+
+                if (file.size > remainingSpaceMB * 1024 * 1024) {
+                    uploadBtn.disabled = true;
+                    flashMessage('Selected file exceeds your remaining storage quota.', 'danger');
+                } else {
+                    uploadBtn.disabled = false;
+                }
+
+                cancelBtn.disabled = true; // Initially disabled
+            } else {
+                fileInfo.textContent = '';
+                uploadBtn.disabled = true;
+                cancelBtn.disabled = true;
+            }
+        });
+
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) {
+                alert('Please select a file.');
+                return;
+            }
+
+            uploadId = generateUUID();
+            console.log(`Starting upload with ID: ${uploadId}`);
+
+            // Reset any previous upload state
+            abortController = new AbortController();
+            uploadCancelled = false;
+
+            async function uploadFile(file) {
+                const chunkSize = 10 * 1024 * 1024;
+                const totalChunks = Math.ceil(file.size / chunkSize);
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                const processingText = document.getElementById('processingText');
+                const progressContainer = document.getElementById('progressContainer');
+                const cancelBtn = document.getElementById('cancelBtn');
+
+                progressContainer.style.display = 'block';
+                cancelBtn.disabled = false;
+
+                const totalFileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+
+                let uploadedSize = 0; // Track uploaded size in bytes
+                let lastLoggedUploadPercentage = 0;
+                let lastLoggedProcessingPercentage = 0;
+
+                for (let i = 0; i < totalChunks; i++) {
+                    if (uploadCancelled) {
+                        console.log('Upload has been cancelled by the user.');
+                        flashMessage('Upload cancelled.', 'warning');
+                        resetUploadUI();
+                        return;
+                    }
+
+                    const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+                    const formData = new FormData();
+                    formData.append('chunk', chunk);
+                    formData.append('chunkIndex', i);
+                    formData.append('totalChunks', totalChunks);
+                    formData.append('fileName', file.name);
+                    formData.append('uploadId', uploadId); // Send upload ID
+                    formData.append('fileSize', file.size); // Send total file size
+
+                    try {
+                        const response = await fetch('{{ url_for("files.upload_chunk") }}', {
+                            method: 'POST',
+                            body: formData,
+                            signal: abortController.signal
+                        });
+
+                        if (!response.ok) {
+                            const errorResult = await response.json();
+                            throw new Error(errorResult.error || 'Upload failed.');
+                        }
+
+                        const result = await response.json();
+                        if (!result.success) {
+                            throw new Error(result.error || 'Upload failed.');
+                        }
+
+                        // Update uploaded size and progress
+                        uploadedSize += chunk.size;
+                        const uploadedSizeMB = (uploadedSize / 1024 / 1024).toFixed(2);
+                        const progressPercentage = Math.round((uploadedSize / file.size) * 100);
+
+                        progressBar.value = progressPercentage;
+                        progressText.textContent = `${progressPercentage}% uploaded (${uploadedSizeMB} MB / ${totalFileSizeMB} MB)`;
+
+                        // Log upload milestones
+                        if (progressPercentage >= lastLoggedUploadPercentage + 25) {
+                            lastLoggedUploadPercentage += 25;
+                            console.log(`${lastLoggedUploadPercentage}% uploaded`);
+                            flashMessage(`${lastLoggedUploadPercentage}% of the file has been uploaded.`, 'info');
+                        }
+                    } catch (error) {
+                        if (abortController.signal.aborted) {
+                            console.log('Upload aborted.');
+                        } else {
+                            console.error(`Error uploading chunk ${i + 1}:`, error);
+                            alert(`Failed to upload chunk ${i + 1}: ${error.message}`);
+                        }
+                        resetUploadUI();
+                        return;
+                    }
+                }
+            }
+
+            uploadFile(file);
+        });
+
+        // Cancel Upload Button Handler
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            if (abortController && uploadId) {
+                uploadCancelled = true;
+                abortController.abort();
+                flashMessage('Cancelling upload...', 'warning');
+
+                // Send a cancellation request to the server
+                fetch('{{ url_for("files.cancel_upload") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ upload_id: uploadId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Upload cancellation acknowledged by server.');
+                    } else {
+                        console.warn('Failed to cancel upload on server:', data.error);
+                        flashMessage('Failed to cancel upload on server.', 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error sending cancellation request:', error);
+                    flashMessage('Error sending cancellation request.', 'danger');
+                });
+            }
+        });
+
+        // Function to reset the upload UI after completion or cancellation
+        function resetUploadUI() {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const processingText = document.getElementById('processingText');
+            const progressContainer = document.getElementById('progressContainer');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const fileInput = document.getElementById('fileInput');
+
+            progressBar.value = 0;
+            progressText.textContent = '0% uploaded (0 MB / 0 MB)';
+            processingText.style.display = 'none';
+            processingText.textContent = 'Processing: 0%';
+            progressContainer.style.display = 'none';
+            cancelBtn.disabled = true;
+            uploadBtn.disabled = true;
+            fileInput.value = ''; // Clear the file input
+            uploadId = null; // Reset the upload ID
+        }
+
+        // Function to display flash messages
+        function flashMessage(message, category) {
+            // Create a temporary div for the flash message
+            const flashContainer = document.querySelector('.flash-messages') || document.createElement('div');
+            if (!document.querySelector('.flash-messages')) {
+                flashContainer.classList.add('flash-messages');
+                document.body.prepend(flashContainer);
+            }
+
+            const alertDiv = document.createElement('div');
+            alertDiv.classList.add('alert', `alert-${category}`, 'alert-dismissible', 'fade', 'show');
+            alertDiv.setAttribute('role', 'alert');
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            `;
+            flashContainer.appendChild(alertDiv);
+
+            // Automatically remove the alert after 5 seconds
+            setTimeout(() => {
+                $(alertDiv).alert('close');
+            }, 5000);
+        }
+    </script>
 
     <!-- Files Table -->
     <table class="table">
