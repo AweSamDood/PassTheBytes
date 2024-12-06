@@ -182,34 +182,40 @@ def cancel_upload():
         current_app.logger.warning(f'Temp directory for upload ID {upload_id} does not exist.')
         return jsonify({"success": False, "error": "Upload session not found."}), 404
 
-def cleanup_stale_temp_dirs():
+def cleanup_stale_temp_dirs(app):
     while True:
-        with cleanup_lock:
-            upload_folders = [f for f in os.listdir(current_app.config['UPLOAD_FOLDER'])
-                              if os.path.isdir(os.path.join(current_app.config['UPLOAD_FOLDER'], f))]
-            for folder in upload_folders:
-                if folder.endswith('_temp'):
-                    temp_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], folder)
-                    tracking_file = os.path.join(temp_dir, 'tracking.json')
-                    if os.path.exists(tracking_file):
-                        try:
-                            with open(tracking_file, 'r') as tf:
-                                tracking_data = json.load(tf)
-                                last_updated = tracking_data.get('last_updated', 0)
-                                if time.time() - last_updated > STALE_THRESHOLD:
-                                    shutil.rmtree(temp_dir, ignore_errors=True)
-                                    current_app.logger.info(f'Removed stale temp directory: {temp_dir}')
-                        except Exception as e:
-                            current_app.logger.error(f'Error reading tracking file {tracking_file}: {e}')
-                            shutil.rmtree(temp_dir, ignore_errors=True)
-                            current_app.logger.info(f'Removed corrupted temp directory: {temp_dir}')
+        with app.app_context():
+            with cleanup_lock:
+                upload_folders = [
+                    f for f in os.listdir(app.config['UPLOAD_FOLDER'])
+                    if os.path.isdir(os.path.join(app.config['UPLOAD_FOLDER'], f))
+                ]
+                for folder in upload_folders:
+                    if folder.endswith('_temp'):
+                        temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], folder)
+                        tracking_file = os.path.join(temp_dir, 'tracking.json')
+                        if os.path.exists(tracking_file):
+                            try:
+                                with open(tracking_file, 'r') as tf:
+                                    tracking_data = json.load(tf)
+                                    last_updated = tracking_data.get('last_updated', 0)
+                                    if time.time() - last_updated > STALE_THRESHOLD:
+                                        shutil.rmtree(temp_dir, ignore_errors=True)
+                                        app.logger.info(f'Removed stale temp directory: {temp_dir}')
+                            except Exception as e:
+                                app.logger.error(f'Error reading tracking file {tracking_file}: {e}')
+                                shutil.rmtree(temp_dir, ignore_errors=True)
+                                app.logger.info(f'Removed corrupted temp directory: {temp_dir}')
         time.sleep(CLEANUP_INTERVAL)
+
 
 # Start the cleanup thread when the blueprint is registered
 @files_bp.record
 def on_load(state):
-    cleanup_thread = threading.Thread(target=cleanup_stale_temp_dirs, daemon=True)
+    app = state.app
+    cleanup_thread = threading.Thread(target=cleanup_stale_temp_dirs, args=(app,), daemon=True)
     cleanup_thread.start()
+
 
 @files_bp.route('/files')
 @login_required
