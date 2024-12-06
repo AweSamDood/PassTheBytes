@@ -21,13 +21,6 @@ print_loaded_config(app)
 
 db.init_app(app)
 migrate = Migrate(app, db)
-
-# Register Blueprints
-app.register_blueprint(auth_bp)
-app.register_blueprint(share_bp)
-app.register_blueprint(files_bp)
-app.register_blueprint(home_bp)
-
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
@@ -45,6 +38,14 @@ if not app.debug:
 
     app.logger.setLevel(logging.INFO)
     app.logger.info('PassTheBytes startup')
+
+# Register Blueprints
+app.register_blueprint(auth_bp)
+app.register_blueprint(share_bp)
+app.register_blueprint(files_bp)
+app.register_blueprint(home_bp)
+
+
 
 
 @app.errorhandler(RequestEntityTooLarge)
