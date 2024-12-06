@@ -1,6 +1,7 @@
 from flask import Blueprint, redirect, url_for, session, request, flash, g, current_app
 from requests_oauthlib import OAuth2Session
 
+import app
 from decorators import login_required
 from models import db, User
 
@@ -46,12 +47,15 @@ def callback():
         admin = discord_user['id'] == current_app.config['ADMIN_DISCORD_USER_ID']
         if admin:
             current_app.logger.info(f'User {discord_user["username"]} ({discord_user["id"]}) is an admin.')
+        premiumUser = discord_user['id'] == current_app.config['PREMIUM_DISCORD_USER_ID']
+        # premium user has 400GB of storage
+        userStorage = 400 * 1024 * 1024 * 1024 if premiumUser else current_app.config['DEFAULT_QUOTA']
         user = User(
             discord_id=discord_user['id'],
             username=discord_user['username'],
             email=discord_user.get('email'),
             is_admin=admin,
-            quota=current_app.config['DEFAULT_QUOTA']
+            quota=userStorage
         )
         db.session.add(user)
         db.session.commit()
