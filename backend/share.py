@@ -45,10 +45,7 @@ def share_file(file_id):
         if expiration:
             try:
                 hours = int(expiration)
-                print(hours)
-                now = datetime.datetime.now()
-                file.expiration_time = now + datetime.timedelta(hours=hours)
-                print(file.expiration_time)
+                file.expiration_time = datetime.datetime.utcnow() + datetime.timedelta(hours=hours)
             except ValueError:
                 current_app.logger.error(f'Invalid expiration time: {expiration}')
                 flash('Invalid expiration time.', 'error')
@@ -61,8 +58,6 @@ def share_file(file_id):
         return redirect(url_for('files.files'))
 
     return render_template('share_file.html', file=file)
-
-
 @share_bp.route('/shared/<share_url>', methods=['GET', 'POST'])
 def access_shared_file(share_url):
     file = File.query.filter_by(share_url=share_url, is_public=True).first_or_404()

@@ -5,5 +5,6 @@ def allowed_file(filename, allowed_extensions):
 
 
 def print_loaded_config(app):
-    for key, value in app.config.items():
-        print(f'{key} = {value}')
+    with open('loaded_config.txt','w') as config:
+        for key, value in app.config.items():
+            print(f'{key} = {value}',file=config)
