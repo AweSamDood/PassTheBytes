@@ -21,3 +21,4 @@ class Config:
     SESSION_COOKIE_SAMESITE = 'Lax'
     PREMIUM_DISCORD_USER_ID = os.getenv('PREMIUM_DISCORD_USER_ID', 0)
     PREFERRED_URL_SCHEME = 'https'
+    FRONTEND_URI = os.getenv('FRONTEND_URI', 'https://localhost:3000')

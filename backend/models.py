@@ -15,6 +15,17 @@ class User(db.Model):
     files = db.relationship('File', backref='user', lazy=True)
 
 
+class Directory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    parent_dir_id = db.Column(db.Integer, db.ForeignKey('directory.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    child_dirs = db.relationship('Directory', backref=db.backref('parent_dir', remote_side=[id]), lazy=True)
+    files = db.relationship('File', backref='directory', lazy=True)
+
+    def __repr__(self):
+        return f"<Directory {self.name}>"
+
 
 class File(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -23,6 +34,7 @@ class File(db.Model):
     filesize = db.Column(db.BigInteger, nullable=False)
     upload_time = db.Column(db.DateTime, default=datetime.utcnow())
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    directory_id = db.Column(db.Integer, db.ForeignKey('directory.id'), nullable=True)
     is_public = db.Column(db.Boolean, default=False)
     share_url = db.Column(db.String(100), unique=True, nullable=True)
     password = db.Column(db.String(255), nullable=True)
@@ -33,3 +45,6 @@ class File(db.Model):
         if self.expiration_time:
             return datetime.utcnow() > self.expiration_time
         return False
+
+    def __repr__(self):
+        return f"<File {self.filename}>"
