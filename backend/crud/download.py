@@ -1,9 +1,9 @@
-from flask import Blueprint, g, current_app, send_file, jsonify, make_response
+from flask import g, send_file, jsonify, make_response
 
 from backend.auth.decorators import login_required
+from backend.crud.files import files_bp
 from ..helpers import log_warning, log_info, log_error
 from ..models import File
-from backend.crud.files import files_bp
 
 
 @files_bp.route('/download/<int:file_id>', methods=['GET'])
@@ -20,7 +20,7 @@ def download(file_id):
         response = make_response(send_file(file.filepath, as_attachment=True))
         # Set Content-Disposition and custom filename header
         response.headers['Content-Disposition'] = f'attachment; filename="{file.filename}"'
-        response.headers['X-Filename'] = file.filename
+        response.headers['x-filename'] = file.filename
         log_info(user, "Download; File downloaded", f"{file.filename} ({file_id})")
         return response
     except Exception as e:

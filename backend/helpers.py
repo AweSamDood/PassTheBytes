@@ -22,11 +22,11 @@ def log_message(user, action, message, level="info"):
     log_message = f"{user_info}; {action}; {message}"
 
     if level == "info":
-        logger.info(log_message, stacklevel=2)
+        logger.info(log_message, stacklevel=3)
     elif level == "warning":
-        logger.warning(log_message, stacklevel=2)
+        logger.warning(log_message, stacklevel=3)
     elif level == "error":
-        logger.error(log_message, stacklevel=2)
+        logger.error(log_message, stacklevel=3)
     else:
         raise ValueError(f"Invalid log level: {level}")
 

@@ -9,6 +9,7 @@ from backend.auth.decorators import login_required
 from ..helpers import log_info, log_error, log_warning
 from ..models import db, File, Directory
 from backend.crud.files import files_bp
+from werkzeug.utils import secure_filename
 
 @files_bp.route('/upload_chunk', methods=['POST'])
 @login_required
@@ -26,7 +27,7 @@ def upload_chunk():
 
     # Validate required parameters
     if not all([chunk, chunk_index, total_chunks, file_name, upload_id, file_size]):
-        current_app.logger.warning('Missing required upload parameters.')
+        log_warning(user,"Upload chunk","Missing required upload parameters")
         return jsonify({"success": False, "error": "Missing required upload parameters."}), 400
 
     try:
@@ -67,7 +68,7 @@ def upload_chunk():
     try:
         chunk.save(chunk_path)
     except Exception as e:
-        current_app.logger.error(f"Error saving chunk {chunk_index} for upload_id {upload_id}: {e}")
+        log_error(user,"Upload chunk",f"{upload_id} - {file_name} - Failed to save chunk: {e}")
         return jsonify({"success": False, "error": "Failed to save chunk."}), 500
 
     # Update tracking data
@@ -97,6 +98,7 @@ def upload_chunk():
 
     # Check if all chunks have been uploaded
     if len(tracking_data['uploaded_chunks']) >= total_chunks:
+        file_name = secure_filename(file_name)
         final_file_path = os.path.join(target_folder, file_name)
         try:
             with open(final_file_path, 'wb') as final_file:
