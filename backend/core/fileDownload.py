@@ -1,9 +1,9 @@
 from flask import g, send_file, jsonify, make_response
 
 from backend.auth.decorators import login_required
-from backend.crud.files import files_bp
-from ..helpers import log_warning, log_info, log_error
-from ..models import File
+from backend.core.view import files_bp
+from backend.helpers import log_warning, log_info, log_error
+from backend.models import File
 
 
 @files_bp.route('/download/<int:file_id>', methods=['GET'])

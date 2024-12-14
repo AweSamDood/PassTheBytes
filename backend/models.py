@@ -20,11 +20,21 @@ class Directory(db.Model):
     name = db.Column(db.String(255), nullable=False)
     parent_dir_id = db.Column(db.Integer, db.ForeignKey('directory.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    child_dirs = db.relationship('Directory', backref=db.backref('parent_dir', remote_side=[id]), lazy=True)
+    path = db.Column(db.String(1024), nullable=False, index=True)
+
+    child_dirs = db.relationship(
+        'Directory',
+        backref=db.backref('parent_dir', remote_side=[id]),
+        lazy=True
+    )
     files = db.relationship('File', backref='directory', lazy=True)
 
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'parent_dir_id', 'name', name='uq_directory_name_in_parent'),
+    )
+
     def __repr__(self):
-        return f"<Directory {self.name}>"
+        return f"<Directory {self.path}>"
 
 
 class File(db.Model):
@@ -39,6 +49,10 @@ class File(db.Model):
     share_url = db.Column(db.String(100), unique=True, nullable=True)
     password = db.Column(db.String(255), nullable=True)
     expiration_time = db.Column(db.DateTime, nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'directory_id', 'filename', name='uq_file_in_directory'),
+    )
 
     @property
     def is_expired(self):

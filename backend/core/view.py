@@ -1,7 +1,9 @@
+from typing import Optional
+
 from flask import Blueprint, request, g, jsonify
 
 from backend.auth.decorators import login_required
-from ..models import File, Directory
+from backend.models import File, Directory
 
 files_bp = Blueprint('files', __name__)
 
@@ -9,7 +11,7 @@ files_bp = Blueprint('files', __name__)
 @login_required
 def files():
     user = g.user
-    dir_id = request.args.get('dir_id', default=None, type=int)
+    dir_id : Optional[int] = request.args.get('dir_id', default=None, type=int)
 
     if dir_id is None:
         # Root-level files and directories

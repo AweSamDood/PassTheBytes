@@ -1,11 +1,12 @@
 import os
 
-from flask import Blueprint, g, current_app, jsonify
+from flask import g, jsonify
 
 from backend.auth.decorators import login_required
-from ..helpers import log_warning, log_error, log_info
-from ..models import db, File
-from backend.crud.files import files_bp
+from backend.core.view import files_bp
+from backend.helpers import log_warning, log_error, log_info
+from backend.models import db, File
+
 
 @files_bp.route('/delete/<int:file_id>', methods=['DELETE'])
 @login_required

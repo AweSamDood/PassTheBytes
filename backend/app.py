@@ -1,19 +1,19 @@
-import os
-
-from flask import Flask, flash, current_app, redirect, url_for, render_template, request, jsonify
-from werkzeug.exceptions import RequestEntityTooLarge, HTTPException
-from flask_cors import CORS
-from backend.config import Config
-from backend.crud.files import files_bp
-from backend.helpers import print_loaded_config
-from backend.models import db
-from backend.auth.auth import auth_bp
-from flask_migrate import Migrate
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 
-from backend.share.shareFile import share_bp
+from flask import Flask, flash, current_app, request, jsonify
+from flask_cors import CORS
+from flask_migrate import Migrate
+from werkzeug.exceptions import RequestEntityTooLarge, HTTPException
 
+from backend.auth.auth import auth_bp
+from backend.config import Config
+from backend.core.view import files_bp
+from backend.helpers import print_loaded_config
+from backend.models import db
+from backend.share.shareFile import share_bp
+from backend.user import user_bp
 
 app = Flask(__name__)
 CORS(
@@ -48,8 +48,9 @@ if not app.debug:
 
 # Register Blueprints
 app.register_blueprint(auth_bp, url_prefix='/api')
-app.register_blueprint(share_bp)
+app.register_blueprint(share_bp, url_prefix='/api')
 app.register_blueprint(files_bp, url_prefix='/api')
+app.register_blueprint(user_bp, url_prefix='/api')
 
 print(app.url_map)
 with app.app_context():

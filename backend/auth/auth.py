@@ -72,6 +72,7 @@ def api_authenticated():
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
         if user:
+            g.user = user
             log_info(user,"Authenticated","User is authenticated.")
             return jsonify({'isAuthenticated': True, 'user': {'id': user.id, 'username': user.username}}), 200
     return jsonify({'isAuthenticated': False}), 200
@@ -80,8 +81,14 @@ def api_authenticated():
 @auth_bp.route('/logout', methods=['POST'])
 def api_logout():
     if 'user_id' in session:
-        log_info(g.user,"Logout","User logged out successfully.")
-        session.clear()
-        g.user = None
-        return jsonify({'message': 'Logged out successfully.'}), 200
+        user = User.query.get(session['user_id'])
+        if user:
+            log_info(user,"Logout","User logged out successfully.")
+            session.clear()
+            g.user = None
+            return jsonify({'message': 'Logged out successfully.'}), 200
+        else:
+            log_error(None,"Logout","User not found.")
+            return jsonify({'message': 'User not found.'}), 400
+    log_error(None,"Logout","No active session found.")
     return jsonify({'message': 'No active session found.'}), 400

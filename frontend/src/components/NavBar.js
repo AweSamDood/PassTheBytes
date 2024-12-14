@@ -1,12 +1,12 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import {useNavigate} from 'react-router-dom';
 import apiClient from '../services/apiClient';
 
 const Navbar = () => {
     const navigate = useNavigate();
 
     const handleLogout = () => {
-        apiClient.post('/api/logout')
+        apiClient.post('/logout')
             .then(() => {
                 navigate('/'); // Redirect to login page
             })

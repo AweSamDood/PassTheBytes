@@ -1,11 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Table, Button, Upload, message } from 'antd';
-import { InboxOutlined } from '@ant-design/icons';
+import React, {useEffect, useState, useRef} from 'react';
+import {Table, Button, Upload, message, Modal, Input} from 'antd';
+import {InboxOutlined} from '@ant-design/icons';
 import axios from 'axios';
 import apiClient from '../services/apiClient';
 import Navbar from '../components/NavBar';
+import FileItem from '../components/FileItem';
+import StorageInfo from '../components/StorageInfo';
 
-const { Dragger } = Upload;
+const {Dragger} = Upload;
 const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
 
 const Files = () => {
@@ -14,12 +16,15 @@ const Files = () => {
     const [user, setUser] = useState(null);
     const [currentDirId, setCurrentDirId] = useState(null);
     const [uploadingFiles, setUploadingFiles] = useState([]);
+    const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+    const [isCreateDirModalVisible, setIsCreateDirModalVisible] = useState(false);
+    const [newDirName, setNewDirName] = useState('');
 
-    // Ref to store cancel tokens for each uploadId
     const cancelTokenMap = useRef(new Map());
 
     useEffect(() => {
         fetchFiles();
+        fetchUserInfo();
     }, []);
 
     const fetchFiles = (dirId = null) => {
@@ -29,9 +34,17 @@ const Files = () => {
             .then(response => {
                 setFiles(response.data.files);
                 setDirectories(response.data.directories);
-                setUser(response.data.user);
+                setSelectedRowKeys([]);
             })
             .catch(err => console.error(err));
+    };
+
+    const fetchUserInfo = () => {
+        const userUrl = `/user`
+        apiClient.get(userUrl)
+            .then(response => {
+                setUser(response.data.user);
+            }).catch(err => console.error(err));
     };
 
     const deleteFile = (fileId) => {
@@ -39,6 +52,7 @@ const Files = () => {
             .then((response) => {
                 message.success(response.data.message);
                 setFiles(files.filter(file => file.id !== fileId));
+                fetchUserInfo();
             })
             .catch((error) => {
                 console.error('Error deleting file:', error);
@@ -46,16 +60,51 @@ const Files = () => {
             });
     };
 
-    const downloadFile = (fileId) => {
-        apiClient.get(`/download/${fileId}`, { responseType: 'blob' })
-            .then((response) => {
-                let filename = response.headers['x-filename'] || 'downloaded_file';
-                console.log('Filename:', filename);
+    const bulkDelete = () => {
+        const fileIds = [];
+        const dirIds = [];
+        selectedRowKeys.forEach(key => {
+            const [type, idStr] = key.split('-');
+            const id = parseInt(idStr, 10);
+            if (type === 'file') {
+                fileIds.push(id);
+            } else if (type === 'dir') {
+                dirIds.push(id);
+            }
+        });
 
+        // Send a single request to delete all selected files and directories
+        apiClient.delete('/delete_multiple_items', {
+            data: {
+                file_ids: fileIds,
+                dir_ids: dirIds
+            }
+        })
+            .then(response => {
+                message.success(response.data.message);
+                fetchUserInfo();
+                fetchFiles(currentDirId);
+            })
+            .catch(error => {
+                console.error('Error deleting selected items:', error);
+                message.error('Failed to delete some items.');
+            })
+            .finally(() => {
+                setSelectedRowKeys([]);
+            });
+    };
+
+
+    const downloadFile = (fileId) => {
+        apiClient.get(`/download/${fileId}`, {responseType: 'blob'})
+            .then((response) => {
+                let filename = response.headers['x-filename'];
                 if (!filename) {
                     const disposition = response.headers['content-disposition'];
                     if (disposition && disposition.indexOf('filename=') !== -1) {
                         filename = disposition.split('filename=')[1].replace(/"/g, '');
+                    } else {
+                        filename = 'downloaded_file';
                     }
                 }
 
@@ -75,7 +124,6 @@ const Files = () => {
     };
 
     const handleUpload = async (file, onProgress, onError, onSuccess) => {
-        // Check for duplicate file names, TODO - check backend for this
         const duplicate = files.find(f => f.filename === file.name);
         if (duplicate) {
             message.error(`A file named "${file.name}" already exists in this directory.`);
@@ -84,9 +132,8 @@ const Files = () => {
         }
 
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-        const uploadId = `upload-${Date.now()}-${file.uid}`; // Unique per file
+        const uploadId = `upload-${Date.now()}-${file.uid}`;
 
-        // Create a CancelToken source and store it
         const cancelSource = axios.CancelToken.source();
         cancelTokenMap.current.set(uploadId, cancelSource);
 
@@ -106,21 +153,26 @@ const Files = () => {
 
             try {
                 const response = await apiClient.post('/upload_chunk', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                    cancelToken: cancelSource.token, // Attach the cancel token
+                    headers: {'Content-Type': 'multipart/form-data'},
+                    cancelToken: cancelSource.token,
                     onUploadProgress: (progressEvent) => {
                         const chunkProgress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
                         const overallProgress = Math.round(((chunkIndex + chunkProgress / 100) / totalChunks) * 100);
-                        onProgress({ percent: overallProgress });
+                        onProgress({percent: overallProgress});
                     },
                 });
 
                 if (!response.data.success) {
                     message.error(`Chunk ${chunkIndex + 1} failed to upload: ${response.data.error}`);
                     onError(new Error(response.data.error));
-                    cancelTokenMap.current.delete(uploadId); // Clean up
+                    cancelTokenMap.current.delete(uploadId);
                     return;
                 }
+
+                if (chunkIndex === totalChunks - 1 && response.data.message.includes('completed')) {
+                    fetchUserInfo();
+                }
+
             } catch (error) {
                 if (axios.isCancel(error)) {
                     console.log(`Upload canceled for ${file.name}`);
@@ -130,29 +182,25 @@ const Files = () => {
                     message.error(`Chunk ${chunkIndex + 1} upload failed.`);
                     onError(error);
                 }
-                cancelTokenMap.current.delete(uploadId); // Clean up
+                cancelTokenMap.current.delete(uploadId);
                 return;
             }
         }
 
-        // All chunks uploaded successfully
         message.success(`${file.name} uploaded successfully.`);
         onSuccess("ok");
         cancelTokenMap.current.delete(uploadId);
-        // clean up uploadingFiles state
         setUploadingFiles(prev => prev.filter(f => f.uid !== file.uid));
         fetchFiles(currentDirId);
     };
 
     const uploadProps = {
         multiple: true,
-        customRequest: ({ file, onProgress, onError, onSuccess }) => {
-            // Assign a unique uploadId to each file
+        customRequest: ({file, onProgress, onError, onSuccess}) => {
             file.uploadId = `upload-${Date.now()}-${file.uid}`;
             handleUpload(file, onProgress, onError, onSuccess);
         },
         beforeUpload: (file) => {
-            // Prevent upload if file with same name exists
             const duplicate = files.find(f => f.filename === file.name);
             if (duplicate) {
                 message.error(`A file named "${file.name}" already exists in this directory.`);
@@ -161,8 +209,7 @@ const Files = () => {
             return true;
         },
         onChange(info) {
-            const { file, fileList: newFileList } = info;
-            // Update uploadingFiles state
+            const {fileList: newFileList} = info;
             setUploadingFiles(newFileList.map(f => ({
                 ...f,
                 uploadId: f.uploadId || `upload-${Date.now()}-${f.uid}`,
@@ -175,24 +222,19 @@ const Files = () => {
         },
         fileList: uploadingFiles,
         onRemove: async (file) => {
-            // Call the backend to cancel the upload
             try {
                 const uploadId = file.uploadId;
                 if (uploadId) {
-                    // Cancel the Axios requests
                     const cancelSource = cancelTokenMap.current.get(uploadId);
                     if (cancelSource) {
                         cancelSource.cancel('Upload canceled by user.');
                     }
 
-                    // Notify the backend to cancel
-                    await apiClient.post('/cancel_upload', { upload_id: uploadId });
-
+                    await apiClient.post('/cancel_upload', {upload_id: uploadId});
                     message.info(`Upload for "${file.name}" has been cancelled.`);
                 }
-                // Remove from uploadingFiles state
                 setUploadingFiles(prev => prev.filter(f => f.uid !== file.uid));
-                cancelTokenMap.current.delete(file.uploadId); // Clean up
+                cancelTokenMap.current.delete(file.uploadId);
                 return true;
             } catch (error) {
                 console.error('Error cancelling upload:', error);
@@ -202,39 +244,53 @@ const Files = () => {
         },
     };
 
+    const onDirectoryClick = (dirId) => {
+        fetchFiles(dirId);
+    };
+
+    const onDelete = (fileId) => {
+        deleteFile(fileId);
+    };
+
+    const onDownload = (fileId) => {
+        downloadFile(fileId);
+    };
+
+    const createDirectory = () => {
+        if (!newDirName.trim()) {
+            message.error('Directory name cannot be empty.');
+            return;
+        }
+        apiClient.post('/create_directory', {
+            name: newDirName,
+            parent_id: currentDirId || null
+        })
+            .then(() => {
+                message.success('Directory created.');
+                setIsCreateDirModalVisible(false);
+                setNewDirName('');
+                fetchFiles(currentDirId);
+            })
+            .catch((err) => {
+                console.error('Error creating directory:', err);
+                message.error('Failed to create directory.');
+            });
+    };
+
     const columns = [
         {
-            title: 'Name',
-            dataIndex: 'name',
-            key: 'name',
-            render: (text, record) => (
-                record.isDirectory
-                    ? <a onClick={() => fetchFiles(record.id)}>{record.name}</a>
-                    : record.name
-            ),
-        },
-        {
-            title: 'Size',
-            dataIndex: 'size',
-            key: 'size',
-            render: (size) => size ? `${(size / 1024 / 1024).toFixed(2)} MB` : '-',
-        },
-        {
-            title: 'Actions',
-            key: 'actions',
+            title: 'Item',
+            dataIndex: 'item',
+            key: 'item',
             render: (_, record) => (
-                !record.isDirectory && (
-                    <div>
-                        <Button onClick={() => downloadFile(record.id)} style={{ marginRight: 8 }}>
-                            Download
-                        </Button>
-                        <Button onClick={() => deleteFile(record.id)} danger>
-                            Delete
-                        </Button>
-                    </div>
-                )
-            ),
-        },
+                <FileItem
+                    record={record}
+                    onDirectoryClick={onDirectoryClick}
+                    onDownload={onDownload}
+                    onDelete={onDelete}
+                />
+            )
+        }
     ];
 
     const dataSource = [
@@ -254,20 +310,23 @@ const Files = () => {
         })),
     ];
 
+    const rowSelection = {
+        selectedRowKeys,
+        onChange: (newSelectedRowKeys) => {
+            setSelectedRowKeys(newSelectedRowKeys);
+        },
+    };
+
     return (
         <div>
-            <Navbar />
-            <h1>My Files</h1>
-            {user && (
-                <p>
-                    <strong>Storage Used:</strong> {(user.used_space / 1024 / 1024).toFixed(2)} MB
-                    / {(user.quota / 1024 / 1024).toFixed(2)} MB
-                </p>
-            )}
+            <Navbar/>
+            <h1>{user ? `${user.username}'s files` : '   '}</h1>
+            <StorageInfo user={user}/>
+
             <Dragger
                 {...uploadProps}
                 onChange={(info) => {
-                    const { file, fileList: newFileList } = info;
+                    const {file, fileList: newFileList} = info;
                     setUploadingFiles(newFileList.map(f => ({
                         ...f,
                         uploadId: f.uploadId || `upload-${Date.now()}-${f.uid}`,
@@ -280,25 +339,52 @@ const Files = () => {
                 }}
             >
                 <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
+                    <InboxOutlined/>
                 </p>
                 <p className="ant-upload-text">Click or drag file to this area to upload</p>
                 <p className="ant-upload-hint">
                     Upload files directly to the current directory.
                 </p>
             </Dragger>
+            <div style={{marginBottom: 20, marginTop: 20}}>
+                <Button onClick={() => setIsCreateDirModalVisible(true)} style={{marginRight: 8,}}>
+                    Create New Directory
+                </Button>
+                {selectedRowKeys.length === 0 ? (
+                    <Button disabled>
+                        Delete Selected
+                    </Button>
+                ) : (
+                    <Button onClick={bulkDelete} danger>
+                        Delete Selected
+                    </Button>)}
+            </div>
             {currentDirId && (
-                <Button style={{ marginTop: 20 }} onClick={() => fetchFiles(null)}>
+                <Button style={{}} onClick={() => fetchFiles(null)}>
                     Back to Root Directory
                 </Button>
             )}
             <Table
-                dataSource={dataSource} // Only directories and existing files
+                dataSource={dataSource}
                 columns={columns}
                 pagination={false}
                 bordered
-                style={{ marginTop: 20 }}
+                style={{marginTop: 20}}
+                rowSelection={rowSelection}
             />
+
+            <Modal
+                title="Create New Directory"
+                visible={isCreateDirModalVisible}
+                onOk={createDirectory}
+                onCancel={() => setIsCreateDirModalVisible(false)}
+            >
+                <Input
+                    placeholder="Directory Name"
+                    value={newDirName}
+                    onChange={(e) => setNewDirName(e.target.value)}
+                />
+            </Modal>
         </div>
     );
 };
