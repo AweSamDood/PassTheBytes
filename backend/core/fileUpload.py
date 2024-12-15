@@ -8,6 +8,7 @@ from backend.auth.decorators import login_required
 from backend.core.view import files_bp
 from backend.helpers import log_info, log_error, log_warning
 from backend.models import db, File, Directory
+from werkzeug.utils import secure_filename
 
 
 @files_bp.route('/upload_chunk', methods=['POST'])
@@ -31,21 +32,34 @@ def upload_chunk():
         total_chunks = int(total_chunks)
         file_size = int(file_size)
         directory_id = int(directory_id) if directory_id else None
+
     except ValueError:
         return jsonify({"success": False, "error": "Invalid parameter value."}), 400
 
+    file_name = secure_filename(file_name)
+
+    # Check directory
     if directory_id:
         directory = Directory.query.filter_by(id=directory_id, user_id=user.id).first()
         if not directory:
             return jsonify({"success": False, "error": "Invalid directory ID."}), 400
         directory_path = directory.path
     else:
-        directory_path = ""  # Root - no path needed other than user folder
+        directory_path = ""
 
     user_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], str(user.id))
-    # For directories, directory_path can be empty for root
     target_folder = os.path.join(user_folder, directory_path) if directory_path else user_folder
     os.makedirs(target_folder, exist_ok=True)
+
+    # test if filename exist before proceding further
+    if chunk_index == 0:
+        existing_file = File.query.filter_by(
+            user_id=user.id,
+            directory_id=directory_id,
+            filename=file_name
+        ).first()
+        if existing_file:
+            return jsonify({"success": False, "error": "A file with this name already exists in this directory."}), 409
 
     temp_dir = os.path.join(user_folder, f'{upload_id}_temp')
     os.makedirs(temp_dir, exist_ok=True)
@@ -54,7 +68,7 @@ def upload_chunk():
     chunk_path = os.path.join(temp_dir, chunk_filename)
     try:
         chunk.save(chunk_path)
-    except Exception as e:
+    except Exception:
         return jsonify({"success": False, "error": "Failed to save chunk."}), 500
 
     tracking_file = os.path.join(temp_dir, 'tracking.json')
@@ -77,24 +91,10 @@ def upload_chunk():
     with open(tracking_file, 'w') as tf:
         json.dump(tracking_data, tf)
 
-    # If all chunks uploaded
     if len(tracking_data['uploaded_chunks']) >= total_chunks:
-        # Final assembly
-        from werkzeug.utils import secure_filename
+
         file_name = secure_filename(file_name)
         final_file_path = os.path.join(target_folder, file_name)
-
-        # Check if a file with the same name already exists in this directory
-        # directory_id can be None for root-level files
-        existing_file = File.query.filter_by(
-            user_id=user.id,
-            directory_id=directory_id,
-            filename=file_name
-        ).first()
-        if existing_file:
-            # Clean up temp
-            shutil.rmtree(temp_dir)
-            return jsonify({"success": False, "error": "A file with this name already exists in this directory."}), 400
 
         try:
             with open(final_file_path, 'wb') as final_file:
@@ -121,7 +121,7 @@ def upload_chunk():
             db.session.commit()
 
             return jsonify({"success": True, "message": "File upload completed successfully."}), 200
-        except Exception:
+        except Exception as e:
             return jsonify({"success": False, "error": "Failed to assemble file."}), 500
 
     return jsonify({"success": True, "message": f"Chunk {chunk_index}/{total_chunks} uploaded successfully."}), 200
