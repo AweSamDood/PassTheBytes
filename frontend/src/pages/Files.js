@@ -5,7 +5,7 @@ import apiClient from '../services/apiClient';
 import Navbar from '../components/NavBar';
 import FileItem from '../components/FileItem';
 import StorageInfo from '../components/StorageInfo';
-import UploadManager from '../components/UploadManager'; // New component
+import UploadManager from '../components/UploadManager';
 
 const Files = () => {
     const [files, setFiles] = useState([]);
@@ -65,24 +65,29 @@ const Files = () => {
             }
         });
 
-        apiClient.delete('/delete_multiple_items', {
-            data: {
-                file_ids: fileIds,
-                dir_ids: dirIds
+        Modal.confirm({
+            title: 'Are you sure you want to delete the selected items?',
+            onOk: () => {
+                apiClient.delete('/delete_multiple_items', {
+                    data: {
+                        file_ids: fileIds,
+                        dir_ids: dirIds
+                    }
+                })
+                    .then(response => {
+                        message.success(response.data.message);
+                        fetchUserInfo();
+                        fetchFiles(currentDirId);
+                    })
+                    .catch(error => {
+                        console.error('Error deleting selected items:', error);
+                        message.error('Failed to delete some items.');
+                    })
+                    .finally(() => {
+                        setSelectedRowKeys([]);
+                    });
             }
-        })
-            .then(response => {
-                message.success(response.data.message);
-                fetchUserInfo();
-                fetchFiles(currentDirId);
-            })
-            .catch(error => {
-                console.error('Error deleting selected items:', error);
-                message.error('Failed to delete some items.');
-            })
-            .finally(() => {
-                setSelectedRowKeys([]);
-            });
+        });
     };
 
     const bulkDownload = () => {
@@ -143,34 +148,6 @@ const Files = () => {
             });
     };
 
-    const downloadFile = (fileId) => {
-        apiClient.get(`/download/${fileId}`, {responseType: 'blob'})
-            .then((response) => {
-                let filename = response.headers['x-filename'];
-                if (!filename) {
-                    const disposition = response.headers['content-disposition'];
-                    if (disposition && disposition.indexOf('filename=') !== -1) {
-                        filename = disposition.split('filename=')[1].replace(/"/g, '');
-                    } else {
-                        filename = 'downloaded_file';
-                    }
-                }
-
-                const url = window.URL.createObjectURL(new Blob([response.data]));
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', filename);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch((error) => {
-                console.error('Error downloading file:', error);
-                message.error('Failed to download the file.');
-            });
-    };
-
     const onDirectoryClick = (dirId) => {
         fetchFiles(dirId);
     };
@@ -184,18 +161,9 @@ const Files = () => {
                 <FileItem
                     record={record}
                     onDirectoryClick={onDirectoryClick}
-                    onDownload={downloadFile}
-                    onDelete={(fileId) => {
-                        apiClient.delete(`/delete/${fileId}`)
-                            .then((response) => {
-                                message.success(response.data.message);
-                                fetchFiles(currentDirId);
-                                fetchUserInfo();
-                            })
-                            .catch((error) => {
-                                console.error('Error deleting file:', error);
-                                message.error('Failed to delete the file.');
-                            });
+                    onUpdate={() => {
+                        fetchFiles(currentDirId);
+                        fetchUserInfo();
                     }}
                 />
             )
@@ -283,6 +251,7 @@ const Files = () => {
                 bordered
                 style={{marginTop: 20}}
                 rowSelection={rowSelection}
+                scroll={{ y: 400 }} // Virtual scrolling area
             />
 
             <Modal
