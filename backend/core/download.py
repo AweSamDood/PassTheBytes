@@ -35,7 +35,6 @@ def download(file_id):
         log_error(user, "Download; Failed to download file", f"{file.filename} ({file_id})", e)
         return jsonify({'success': False, 'error': 'Failed to download file.'}), 500
 
-
 @files_bp.route('/download_multiple_items', methods=['POST'])
 @login_required
 def download_multiple_items():
@@ -57,26 +56,27 @@ def download_multiple_items():
         return jsonify({"success": False, "error": "Some directories are invalid or not owned by the user."}), 400
 
     # Gather all files from directories recursively
-    def gather_files_from_directory(dir_obj, all_files):
+    def gather_files_from_directory(dir_obj, all_files, base_path=""):
+        relative_dir_path = os.path.join(base_path, dir_obj.name)
         for f in dir_obj.files:
-            all_files.append(f)
+            all_files.append((f, relative_dir_path))
         for child_dir in dir_obj.child_dirs:
-            gather_files_from_directory(child_dir, all_files)
+            gather_files_from_directory(child_dir, all_files, relative_dir_path)
 
-    all_files_to_zip = files[:]
+    all_files_to_zip = [(f, "") for f in files]
     for d in directories:
         gather_files_from_directory(d, all_files_to_zip)
 
     # Create in-memory ZIP file
     memory_file = BytesIO()
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for f in all_files_to_zip:
-            if os.path.exists(f.filepath):
-                arcname = os.path.join(d.name, f.filename) if f.directory_id else f.filename
-                zf.write(f.filepath, arcname)
+        for file_obj, relative_path in all_files_to_zip:
+            if os.path.exists(file_obj.filepath):
+                arcname = os.path.join(relative_path, file_obj.filename)  # Include relative path
+                zf.write(file_obj.filepath, arcname)
             else:
-                log_warning(user, "Download Multiple; File not found", f"{f.filename} ({f.id})")
-                return jsonify({"success": False, "error": f"File {f.filename} not found on server."}), 404
+                log_warning(user, "Download Multiple; File not found", f"{file_obj.filename} ({file_obj.id})")
+                return jsonify({"success": False, "error": f"File {file_obj.filename} not found on server."}), 404
 
     memory_file.seek(0)
 
@@ -91,3 +91,4 @@ def download_multiple_items():
     except Exception as e:
         log_error(user, "Download Multiple; Failed to create ZIP file", str(e))
         return jsonify({"success": False, "error": "Failed to create ZIP file."}), 500
+
