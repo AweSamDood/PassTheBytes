@@ -11,7 +11,7 @@ files_bp = Blueprint('files', __name__)
 @login_required
 def files():
     user = g.user
-    dir_id : Optional[int] = request.args.get('dir_id', default=None, type=int)
+    dir_id: Optional[int] = request.args.get('dir_id', default=None, type=int)
 
     if dir_id is None:
         # Root-level files and directories
@@ -42,6 +42,14 @@ def files():
         for directory in directories
     ]
 
+    breadcrumbs = []
+    current_dir = Directory.query.get(dir_id) if dir_id else None
+    while current_dir:
+        breadcrumbs.insert(0, {'id': current_dir.id, 'name': current_dir.name})
+        current_dir = current_dir.parent_dir
+
+    breadcrumbs.insert(0, {'id': None, 'name': 'Root'})  # Add Root as the starting point
+
     # Include user's storage information
     user_data = {
         'id': user.id,
@@ -50,6 +58,9 @@ def files():
         'quota': user.quota
     }
 
-    return jsonify({'files': files_data, 'directories': dirs_data, 'user': user_data}), 200
-
-
+    return jsonify({
+        'files': files_data,
+        'directories': dirs_data,
+        'user': user_data,
+        'breadcrumbs': breadcrumbs
+    }), 200

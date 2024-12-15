@@ -14,6 +14,7 @@ token_url = 'https://discord.com/api/oauth2/token'
 @auth_bp.route('/login', methods=['GET'])
 def api_login():
     redirect_uri = current_app.config['REDIRECT_URI']
+    # TODO handle canceling the login process
     discord = OAuth2Session(current_app.config['CLIENT_ID'], redirect_uri=redirect_uri, scope=['identify', 'email'])
     authorization_url, state = discord.authorization_url(authorization_base_url)
     session['oauth_state'] = state
