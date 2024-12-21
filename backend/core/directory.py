@@ -2,6 +2,7 @@ import os
 from typing import Optional
 
 from flask import request, g, jsonify
+from werkzeug.utils import secure_filename
 
 from backend.auth.decorators import login_required
 from backend.core.view import files_bp
@@ -19,6 +20,10 @@ def create_directory():
 
     if not name:
         return jsonify({"success": False, "error": "Directory name is required"}), 400
+
+    # test filename secure and if diff then return wrong filename
+    if name != secure_filename(name):
+        return jsonify({"success": False, "error": "Invalid directory name"}), 409
 
     if parent_id:
         parent_dir = Directory.query.filter_by(id=parent_id, user_id=user.id).first()

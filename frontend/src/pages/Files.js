@@ -143,8 +143,9 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                 fetchFiles(currentDirId);
             })
             .catch((err) => {
+                const errorMsg = err.response.data.error;
                 console.error('Error creating directory:', err);
-                message.error('Failed to create directory.');
+                message.error('Failed to create directory.' + (errorMsg ? ` Reason: ${errorMsg}` : ''));
             });
     };
 
