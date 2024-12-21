@@ -1,6 +1,6 @@
 import os
+import tempfile
 import zipfile
-from io import BytesIO
 
 from flask import g, send_file, jsonify, make_response, request
 
@@ -35,6 +35,8 @@ def download(file_id):
         log_error(user, "Download; Failed to download file", f"{file.filename} ({file_id})", e)
         return jsonify({'success': False, 'error': 'Failed to download file.'}), 500
 
+
+
 @files_bp.route('/download_multiple_items', methods=['POST'])
 @login_required
 def download_multiple_items():
@@ -67,28 +69,33 @@ def download_multiple_items():
     for d in directories:
         gather_files_from_directory(d, all_files_to_zip)
 
-    # Create in-memory ZIP file
-    memory_file = BytesIO()
-    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for file_obj, relative_path in all_files_to_zip:
-            if os.path.exists(file_obj.filepath):
-                arcname = os.path.join(relative_path, file_obj.filename)  # Include relative path
-                zf.write(file_obj.filepath, arcname)
-            else:
-                log_warning(user, "Download Multiple; File not found", f"{file_obj.filename} ({file_obj.id})")
-                return jsonify({"success": False, "error": f"File {file_obj.filename} not found on server."}), 404
-
-    memory_file.seek(0)
-
+    # Create ZIP file on disk
     try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_zip_file:
+            zip_file_path = tmp_zip_file.name
+            with zipfile.ZipFile(tmp_zip_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for file_obj, relative_path in all_files_to_zip:
+                    if os.path.exists(file_obj.filepath):
+                        arcname = os.path.join(relative_path, file_obj.filename)  # Include relative path
+                        zf.write(file_obj.filepath, arcname)
+                    else:
+                        log_warning(user, "Download Multiple; File not found", f"{file_obj.filename} ({file_obj.id})")
+                        return jsonify({"success": False, "error": f"File {file_obj.filename} not found on server."}), 404
+    except Exception as e:
+        log_error(user, "Download Multiple; Failed to create ZIP file", str(e))
+        return jsonify({"success": False, "error": "Failed to create ZIP file."}), 500
+
+    # Serve ZIP file
+    try:
+        # print location of zip file
+        print(zip_file_path)
         response = make_response(
-            send_file(memory_file, as_attachment=True, download_name="selected_items.zip")
+            send_file(zip_file_path, as_attachment=True, download_name="selected_items.zip")
         )
         response.headers['X-Filename'] = 'selected_items.zip'
         response.headers['Access-Control-Expose-Headers'] = 'X-Filename'
         log_info(user, "Download Multiple; Files downloaded", f"{len(all_files_to_zip)} items zipped.")
         return response
     except Exception as e:
-        log_error(user, "Download Multiple; Failed to create ZIP file", str(e))
-        return jsonify({"success": False, "error": "Failed to create ZIP file."}), 500
-
+        log_error(user, "Download Multiple; Failed to send ZIP file", str(e))
+        return jsonify({"success": False, "error": "Failed to send ZIP file."}), 500
