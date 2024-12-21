@@ -1,22 +1,17 @@
 import React from 'react';
-import {useNavigate} from 'react-router-dom';
-import apiClient from '../services/apiClient';
 
-const Navbar = () => {
-    const navigate = useNavigate();
-
-    const handleLogout = () => {
-        apiClient.post('/logout')
-            .then(() => {
-                navigate('/'); // Redirect to login page
-            })
-            .catch((error) => console.error('Error logging out:', error));
-    };
-
+const Navbar = ({ toggleTheme, isDarkMode }) => {
     return (
         <nav style={styles.navbar}>
             <div style={styles.brand}>PassTheBytes</div>
-            <button style={styles.logoutButton} onClick={handleLogout}>Logout</button>
+            <div>
+                <button style={styles.toggleButton} onClick={toggleTheme}>
+                    {isDarkMode ? 'Light Theme' : 'Dark Theme'}
+                </button>
+                <button style={styles.logoutButton} onClick={() => alert('Logged out')}>
+                    Logout
+                </button>
+            </div>
         </nav>
     );
 };
@@ -34,6 +29,15 @@ const styles = {
     brand: {
         fontSize: '1.5rem',
         fontWeight: 'bold',
+    },
+    toggleButton: {
+        padding: '8px 16px',
+        backgroundColor: '#1677ff',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        marginRight: '8px',
     },
     logoutButton: {
         padding: '8px 16px',

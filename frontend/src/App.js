@@ -1,17 +1,48 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'; // Import these
+import React, {useEffect, useState} from 'react';
+import {ConfigProvider, theme} from 'antd';
+import {BrowserRouter as Router, Routes, Route} from 'react-router-dom';
 import Login from './pages/Login';
+import Files from './pages/Files';
 import './App.css';
-import Files from "./pages/Files";
+
 
 function App() {
+    const [isDarkMode, setIsDarkMode] = useState(false);
+
+    const toggleTheme = () => {
+        setIsDarkMode((prev) => !prev);
+    };
+
+    useEffect(() => {
+        const body = document.body;
+        if (isDarkMode) {
+            body.classList.add('dark-mode');
+        } else {
+            body.classList.remove('dark-mode');
+        }
+    }, [isDarkMode]);
+
     return (
-        <Router>
-            <Routes>
-                <Route path="/" element={<Login />} />
-                <Route path="/files" element={<Files />} />
-            </Routes>
-        </Router>
+        <ConfigProvider
+            theme={{
+                algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                token: {
+                    colorPrimary: isDarkMode ? '#00b96b' : '#1677ff',
+                    borderRadius: 2,
+                    // Add other tokens as needed
+                },
+            }}
+        >
+            <Router>
+                <Routes>
+                    <Route path="/" element={<Login/>}/>
+                    <Route
+                        path="/files"
+                        element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode}/>}
+                    />
+                </Routes>
+            </Router>
+        </ConfigProvider>
     );
 }
 

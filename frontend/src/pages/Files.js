@@ -7,7 +7,7 @@ import FileItem from '../components/FileItem';
 import StorageInfo from '../components/StorageInfo';
 import UploadManager from '../components/UploadManager';
 
-const Files = () => {
+const Files = ({ toggleTheme, isDarkMode }) => {
     const [files, setFiles] = useState([]);
     const [directories, setDirectories] = useState([]);
     const [user, setUser] = useState(null);
@@ -179,7 +179,7 @@ const Files = () => {
 
     return (
         <div>
-            <Navbar/>
+            <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} />
             <h1>{user ? `${user.username}'s files` : ' '}</h1>
             <StorageInfo user={user}/>
 
@@ -256,7 +256,7 @@ const Files = () => {
 
             <Modal
                 title="Create New Directory"
-                visible={isCreateDirModalVisible}
+                open={isCreateDirModalVisible}
                 onOk={createDirectory}
                 onCancel={() => setIsCreateDirModalVisible(false)}
             >
