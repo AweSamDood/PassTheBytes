@@ -59,7 +59,7 @@ def upload_chunk():
             filename=file_name
         ).first()
         if existing_file:
-            return jsonify({"success": False, "error": "A file with this name already exists in this directory."}), 409
+            return jsonify({"success": False, "error": "A file with this name already exists in this directory.", "filename": file_name}), 409
 
     temp_dir = os.path.join(user_folder, f'{upload_id}_temp')
     os.makedirs(temp_dir, exist_ok=True)
