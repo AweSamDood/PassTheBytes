@@ -34,7 +34,7 @@ const Login = () => {
     };
 
     return (
-        <div>
+        <div style={styles.login}>
             <h1>Login</h1>
             {authUrl ? (
                 <button onClick={handleLogin}>Login with Discord</button>
@@ -45,4 +45,13 @@ const Login = () => {
     );
 };
 
+const styles = {
+    login: {
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+    },
+};
 export default Login;

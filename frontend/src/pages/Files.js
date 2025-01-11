@@ -252,7 +252,7 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                 bordered
                 style={{marginTop: 20}}
                 rowSelection={rowSelection}
-                scroll={{ y: 400 }} // Virtual scrolling area
+                scroll={{ y: 'calc(100vh - 400px)' }}
             />
 
             <Modal

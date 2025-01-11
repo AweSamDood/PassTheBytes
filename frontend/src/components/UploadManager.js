@@ -1,43 +1,65 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, message } from 'antd';
-import { InboxOutlined } from '@ant-design/icons';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Upload, message, Button, Space } from 'antd';
+import { InboxOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import apiClient from '../services/apiClient';
 
 const { Dragger } = Upload;
+
+// Configuration
 const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
-const MAX_UPLOAD_FILES = 10;
-const MAX_CONCURRENT_UPLOADS = 4;
+const MAX_UPLOAD_FILES = 15;       // Maximum files allowed in total
 
+/**
+ * Single-concurrency chunked-uploader:
+ * - Only one file uploads at a time.
+ * - We do NOT remove the file from the list upon success;
+ *   instead we set `status: 'done'`.
+ */
 const UploadManager = ({ currentDirId, onUploadComplete }) => {
-    const [uploadingFiles, setUploadingFiles] = useState([]);
+    const [fileList, setFileList] = useState([]);
     const [uploadQueue, setUploadQueue] = useState([]);
-    const [activeUploads, setActiveUploads] = useState(0);
+    const [isUploading, setIsUploading] = useState(false);
+
+    // For cancel logic
     const cancelTokenMap = useRef(new Map());
+    const currentUploadIdRef = useRef(null);
 
-    useEffect(() => {
-        dequeueUpload();
-    }, [activeUploads, uploadQueue]);
+    // ------------------------------
+    // 1) Actually upload the file (chunk by chunk)
+    // ------------------------------
+    const uploadFile = useCallback(async (uploadItem) => {
+        const { file, onProgress, onError, onSuccess } = uploadItem;
 
-    const handleUpload = async ({file, onProgress, onError, onSuccess}) => {
-        const startUpload = () => {
-            setActiveUploads(prev => prev + 1);
-            doUpload();
-        };
+        setIsUploading(true);
 
-        const doUpload = async () => {
-            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-            const uploadId = `upload-${Date.now()}-${file.uid}`;
-            const cancelSource = axios.CancelToken.source();
-            cancelTokenMap.current.set(uploadId, cancelSource);
+        // Prepare chunk info
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const uploadId = `upload-${Date.now()}-${file.uid}`;
+        currentUploadIdRef.current = uploadId;
 
+        // Create an axios CancelToken for this file
+        const cancelSource = axios.CancelToken.source();
+        cancelTokenMap.current.set(uploadId, cancelSource);
+
+        let successful = false;
+
+        try {
+            // Loop through chunks
             for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                // If canceled mid-way, stop
+                if (!cancelTokenMap.current.has(uploadId)) {
+                    throw new Error('Upload canceled');
+                }
+
+                // Create chunk
                 const start = chunkIndex * CHUNK_SIZE;
                 const end = Math.min(file.size, start + CHUNK_SIZE);
-                const chunk = file.slice(start, end);
+                const chunkBlob = file.slice(start, end);
 
+                // FormData
                 const formData = new FormData();
-                formData.append('chunk', chunk);
+                formData.append('chunk', chunkBlob);
                 formData.append('fileName', file.name);
                 formData.append('chunkIndex', chunkIndex);
                 formData.append('totalChunks', totalChunks);
@@ -45,145 +67,201 @@ const UploadManager = ({ currentDirId, onUploadComplete }) => {
                 formData.append('fileSize', file.size);
                 formData.append('directoryId', currentDirId || '');
 
-                try {
-                    const response = await apiClient.post('/upload_chunk', formData, {
-                        headers: {'Content-Type': 'multipart/form-data'},
-                        cancelToken: cancelSource.token,
-                        onUploadProgress: (progressEvent) => {
-                            const chunkProgress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
-                            const overallProgress = Math.round(((chunkIndex + chunkProgress / 100) / totalChunks) * 100);
-                            onProgress({percent: overallProgress});
-                        },
-                    });
-
-                    if (!response.data.success) {
-                        // Backend error (e.g., file already exists)
-                        message.error(`Upload failed: ${response.data.error}`);
-                        onError(new Error(response.data.error));
-                        cancelTokenMap.current.delete(uploadId);
-                        setActiveUploads(prev => prev - 1);
-                        dequeueUpload();
-                        return;
-                    }
-
-                    if (chunkIndex === totalChunks - 1 && response.data.message.includes('completed')) {
-                        // Upload finished
-                        message.success(`${file.name} uploaded successfully.`);
-                        onSuccess("ok");
-                        cancelTokenMap.current.delete(uploadId);
-                        setActiveUploads(prev => prev - 1);
-
-                        // Remove from uploading files since it's done
-                        setUploadingFiles(prev =>
-                            prev.filter(f => f.uid !== file.uid)
+                // Send chunk
+                const response = await apiClient.post('/upload_chunk', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                    cancelToken: cancelSource.token,
+                    onUploadProgress: (progressEvent) => {
+                        const chunkProgress = Math.round(
+                            (progressEvent.loaded / progressEvent.total) * 100
+                        );
+                        const overallProgress = Math.round(
+                            ((chunkIndex + chunkProgress / 100) / totalChunks) * 100
                         );
 
-                        // Trigger update in parent
-                        onUploadComplete();
+                        // Update antd's progress
+                        onProgress({ percent: overallProgress });
 
-                        dequeueUpload();
-                    }
+                        // Update fileList's progress
+                        setFileList((prev) =>
+                            prev.map((f) =>
+                                f.uid === file.uid
+                                    ? { ...f, status: 'uploading', percent: overallProgress }
+                                    : f
+                            )
+                        );
+                    },
+                });
 
-                } catch (error) {
-                    if (axios.isCancel(error)) {
-                        console.log(`Upload canceled for ${file.name}`);
-                        onError(new Error('Upload canceled by user.'));
-                    } else {
-                        console.error('Error uploading chunk:', error);
-                        message.error(`Chunk ${chunkIndex + 1} upload failed.`);
-                        onError(error);
-                    }
-                    cancelTokenMap.current.delete(uploadId);
-                    setActiveUploads(prev => prev - 1);
-                    dequeueUpload();
-                    return;
+                if (!response.data.success) {
+                    // Could be 409 or something else
+                    onError(new Error(response.data.error || 'Upload error'));
+                    message.error(`Upload failed: ${response.data.error}`);
+                    throw new Error(response.data.error);
+                }
+
+                // If last chunk => success
+                if (
+                    chunkIndex === totalChunks - 1 &&
+                    response.data.message?.includes('completed')
+                ) {
+                    onSuccess('ok');
+                    message.success(`${file.name} uploaded successfully.`);
+                    successful = true;
+                    onUploadComplete?.();
                 }
             }
-        };
-
-        if (activeUploads < MAX_CONCURRENT_UPLOADS) {
-            startUpload();
-        } else {
-            // Enqueue the upload
-            setUploadQueue(prev => [...prev, {file, onProgress, onError, onSuccess}]);
-        }
-    };
-
-    const dequeueUpload = () => {
-        setUploadQueue(prevQueue => {
-            const queue = [...prevQueue];
-            if (queue.length > 0 && activeUploads < MAX_CONCURRENT_UPLOADS) {
-                const next = queue.shift();
-                handleUpload(next);
+        } catch (err) {
+            if (axios.isCancel(err) || err.message?.includes('canceled')) {
+                console.log(`Canceled upload for ${file.name}`);
+                message.info(`Upload canceled for ${file.name}`);
+            } else {
+                console.error('Chunk upload error:', err);
+                onError(err);
+                message.error(`Failed uploading ${file.name}`);
             }
-            return queue;
-        });
-    };
+        } finally {
+            // Clean up
+            cancelTokenMap.current.delete(uploadId);
+            currentUploadIdRef.current = null;
+            setIsUploading(false);
 
+            // Mark the file as done or error, but do NOT remove it from the list
+            setFileList((prev) =>
+                prev.map((f) => {
+                    if (f.uid !== file.uid) return f;
+                    return successful
+                        ? { ...f, status: 'done', percent: 100 }
+                        : { ...f, status: 'error', percent: 0 };
+                })
+            );
+
+            // Move on to next file
+            startNextUpload();
+        }
+    }, [currentDirId, onUploadComplete]);
+
+    // ------------------------------
+    // 2) Start next file if not busy
+    // ------------------------------
+    const startNextUpload = useCallback(() => {
+        if (isUploading) return;
+        if (uploadQueue.length === 0) return;
+
+        const [nextItem, ...rest] = uploadQueue;
+        setUploadQueue(rest);
+        uploadFile(nextItem);
+    }, [isUploading, uploadQueue, uploadFile]);
+
+    useEffect(() => {
+        // Whenever queue changes or isUploading changes, try uploading
+        if (!isUploading && uploadQueue.length > 0) {
+            startNextUpload();
+        }
+    }, [uploadQueue, isUploading, startNextUpload]);
+
+    // ------------------------------
+    // 3) antd Upload props
+    // ------------------------------
     const uploadProps = {
-        multiple: true,
-        customRequest: (options) => {
-            const { file } = options;
-            const currentUploadCount = uploadingFiles.length + uploadQueue.length + activeUploads;
-            if (currentUploadCount >= MAX_UPLOAD_FILES) {
-                message.error('You cannot upload more than 10 files at once.');
+        multiple: true, // Let user select multiple files, but we'll do them one at a time
+        customRequest: ({ file, onProgress, onError, onSuccess }) => {
+            // Check if we're at the limit
+            const totalCount = fileList.length + uploadQueue.length + (isUploading ? 1 : 0);
+            if (totalCount >= MAX_UPLOAD_FILES) {
+                message.error(`You cannot upload more than ${MAX_UPLOAD_FILES} files.`);
                 return;
             }
-            handleUpload(options);
+
+            // Add to queue
+            setUploadQueue((prev) => [
+                ...prev,
+                { file, onProgress, onError, onSuccess }
+            ]);
         },
-        beforeUpload: (file, fileList) => {
-            if (fileList.length > 10) {
-                message.error('You cannot upload more than 10 files at once.');
-                return Upload.LIST_IGNORE;
-            }
-            // We rely on backend to reject if file already exists
-            return true;
+
+        onChange: (info) => {
+            // Sync antd's fileList
+            setFileList(info.fileList);
         },
-        onChange(info) {
-            const { fileList: newFileList } = info;
-            setUploadingFiles(newFileList.map(f => ({
-                ...f,
-                uploadId: f.uploadId || `upload-${Date.now()}-${f.uid}`,
-                percent: f.percent || 0,
-                status: f.status || 'uploading',
-            })));
-        },
+
         onRemove: async (file) => {
             try {
-                if (file.status !== 'done') {
-                    const uploadId = file.uploadId;
-                    if (uploadId) {
-                        const cancelSource = cancelTokenMap.current.get(uploadId);
-                        if (cancelSource) {
-                            cancelSource.cancel('Upload canceled by user.');
-                            await apiClient.post('/cancel_upload', {upload_id: uploadId});
-                            message.info(`Upload for "${file.name}" has been cancelled.`);
+                if (file.status === 'uploading') {
+                    // Cancel token
+                    for (const [key, source] of cancelTokenMap.current.entries()) {
+                        if (key.includes(file.uid)) {
+                            source.cancel('Upload canceled by user.');
+                            // Optionally tell backend
+                            await apiClient.post('/cancel_upload', { upload_id: key }).catch(() => {});
+                            break;
                         }
                     }
-                    cancelTokenMap.current.delete(file.uploadId);
                 }
-                // Remove from uploading list
-                setUploadingFiles(prev => prev.filter(f => f.uid !== file.uid));
+
+                // Remove from queue if not started
+                setUploadQueue((prev) => prev.filter((item) => item.file.uid !== file.uid));
+
+                // antd will remove from `fileList` automatically if we return true
                 return true;
             } catch (error) {
                 console.error('Error removing file:', error);
-                message.error(`Failed to remove file "${file.name}".`);
+                message.error(`Failed to remove ${file.name}`);
                 return false;
             }
         },
-        fileList: uploadingFiles
+
+        fileList
     };
 
+    // ------------------------------
+    // 4) Cancel/Remove All
+    // ------------------------------
+    const handleCancelAll = async () => {
+        // If there's a current upload, cancel it
+        const currentId = currentUploadIdRef.current;
+        if (currentId && cancelTokenMap.current.has(currentId)) {
+            cancelTokenMap.current.get(currentId).cancel('Canceled by user');
+            cancelTokenMap.current.delete(currentId);
+            await apiClient.post('/cancel_upload', { upload_id: currentId }).catch(() => {});
+        }
+        currentUploadIdRef.current = null;
+
+        // Clear everything
+        setFileList([]);
+        setUploadQueue([]);
+        setIsUploading(false);
+
+        message.info('All uploads have been canceled and removed.');
+    };
+
+    // ------------------------------
+    // 5) Render
+    // ------------------------------
     return (
-        <Dragger {...uploadProps} style={{ marginBottom: 20, marginTop: 20 }}>
-            <p className="ant-upload-drag-icon">
-                <InboxOutlined/>
-            </p>
-            <p className="ant-upload-text">Click or drag file to this area to upload</p>
-            <p className="ant-upload-hint">
-                Upload files directly to the current directory.
-            </p>
-        </Dragger>
+        <div style={{ margin: '20px 0' }}>
+            <Dragger {...uploadProps}>
+                <p className="ant-upload-drag-icon">
+                    <InboxOutlined />
+                </p>
+                <p className="ant-upload-text">Click or drag files here to upload</p>
+                <p className="ant-upload-hint">
+                    Single file at a time (chunked). Max 15 total.
+                </p>
+            </Dragger>
+
+            {fileList.length > 0 && (
+                <Space style={{ marginTop: 16 }}>
+                    <Button
+                        onClick={handleCancelAll}
+                        icon={<CloseCircleOutlined />}
+                        danger
+                    >
+                        Cancel/Remove All
+                    </Button>
+                </Space>
+            )}
+        </div>
     );
 };
 

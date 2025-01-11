@@ -1,7 +1,5 @@
 from typing import Optional
-
 from flask import Blueprint, request, g, jsonify
-
 from backend.auth.decorators import login_required
 from backend.models import File, Directory
 
