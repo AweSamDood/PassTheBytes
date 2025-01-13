@@ -1,10 +1,9 @@
 from typing import Optional
 from flask import Blueprint, request, g, jsonify
 from backend.auth.decorators import login_required
-from backend.models import File, Directory
+from backend.models import File, Directory, Share
 
 files_bp = Blueprint('files', __name__)
-
 @files_bp.route('/files', methods=['GET'])
 @login_required
 def files():
@@ -20,17 +19,15 @@ def files():
         files = File.query.filter_by(user_id=user.id, directory_id=dir_id).all()
         directories = Directory.query.filter_by(user_id=user.id, parent_dir_id=dir_id).all()
 
-    files_data = [
-        {
+    files_data = []
+    for file in files:
+        share_key = get_share_key_for_file(file)
+        files_data.append({
             'id': file.id,
             'filename': file.filename,
             'filesize': file.filesize,
-            'is_public': file.is_public,
-            'is_expired': file.is_expired,
-            'share_url': file.share_url
-        }
-        for file in files
-    ]
+            'share_key': share_key  # None if not shared
+        })
 
     dirs_data = [
         {
@@ -62,3 +59,12 @@ def files():
         'user': user_data,
         'breadcrumbs': breadcrumbs
     }), 200
+
+def get_share_key_for_file(file_obj):
+    share = Share.query.filter_by(
+        owner_id=file_obj.user_id,
+        object_type='file',
+        object_id=file_obj.id
+    ).first()
+    return share.share_key if share else None
+

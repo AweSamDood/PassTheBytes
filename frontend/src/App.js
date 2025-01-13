@@ -4,6 +4,7 @@ import {BrowserRouter as Router, Routes, Route} from 'react-router-dom';
 import Login from './pages/Login';
 import Files from './pages/Files';
 import './App.css';
+import PublicSharePage from "./pages/ShareFilePage";
 
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
                         path="/files"
                         element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode}/>}
                     />
+                    <Route path="/share/:shareKey" element={<PublicSharePage />} />
                 </Routes>
             </Router>
         </ConfigProvider>

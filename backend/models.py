@@ -12,7 +12,6 @@ class User(db.Model):
     quota = db.Column(db.BigInteger, default=0)
     used_space = db.Column(db.BigInteger, default=0)
     is_admin = db.Column(db.Boolean, default=False)
-    files = db.relationship('File', backref='user', lazy=True)
 
 
 class Directory(db.Model):
@@ -45,14 +44,25 @@ class File(db.Model):
     upload_time = db.Column(db.DateTime, default=datetime.utcnow())
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     directory_id = db.Column(db.Integer, db.ForeignKey('directory.id'), nullable=True)
-    is_public = db.Column(db.Boolean, default=False)
-    share_url = db.Column(db.String(100), unique=True, nullable=True)
-    password = db.Column(db.String(255), nullable=True)
-    expiration_time = db.Column(db.DateTime, nullable=True)
 
     __table_args__ = (
         db.UniqueConstraint('user_id', 'directory_id', 'filename', name='uq_file_in_directory'),
     )
+
+    def __repr__(self):
+        return f"<File {self.filename}>"
+
+class Share(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    owner = db.relationship('User', backref='shares')
+    object_type = db.Column(db.String(10), nullable=False)  # 'file' or 'directory'
+    object_id = db.Column(db.Integer, nullable=False)
+    share_key = db.Column(db.String(100), unique=True, nullable=False)
+    permission = db.Column(db.String(10), nullable=False, default='read')
+    password = db.Column(db.String(255), nullable=True)
+    expiration_time = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
     def is_expired(self):
@@ -60,5 +70,3 @@ class File(db.Model):
             return datetime.utcnow() > self.expiration_time
         return False
 
-    def __repr__(self):
-        return f"<File {self.filename}>"

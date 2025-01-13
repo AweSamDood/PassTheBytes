@@ -48,7 +48,7 @@ if not app.debug:
 
 # Register Blueprints
 app.register_blueprint(auth_bp, url_prefix='/api')
-app.register_blueprint(share_bp, url_prefix='/api')
+app.register_blueprint(share_bp, url_prefix='/api/share')
 app.register_blueprint(files_bp, url_prefix='/api')
 app.register_blueprint(user_bp, url_prefix='/api')
 

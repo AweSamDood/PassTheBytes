@@ -35,7 +35,7 @@ const UploadManager = ({ currentDirId, onUploadComplete }) => {
 
         // Prepare chunk info
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-        const uploadId = `upload-${Date.now()}-${file.uid}`;
+        const uploadId = file.uid;
         currentUploadIdRef.current = uploadId;
 
         // Create an axios CancelToken for this file

@@ -1,81 +1,137 @@
-import datetime
 import os
 import uuid
-
-from flask import (
-    Blueprint,
-    render_template,
-    request,
-    redirect,
-    url_for,
-    send_from_directory,
-    flash,
-    g, current_app
-)
-
+from flask import Blueprint, request, g, jsonify, send_file, abort
 from backend.auth.decorators import login_required
-from backend.helpers import log_warning, log_error, log_info
-from backend.models import db, File
+from backend.models import db, File, Share
+from werkzeug.security import generate_password_hash, check_password_hash
 
-share_bp = Blueprint('share', __name__)
 
-#
-# @share_bp.route('/share/<int:file_id>', methods=['GET', 'POST'])
-# @login_required
-# def share_file(file_id):
-#     user = g.user
-#     file = File.query.get_or_404(file_id)
-#     if file.user_id != user.id:
-#         log_warning(user, "Share file; Access denied", f"{file.filename} ({file_id})")
-#         return redirect(url_for('files.files'))
-#
-#     if request.method == 'POST':
-#         # Generate a unique share URL
-#         file.share_url = str(uuid.uuid4())
-#         file.is_public = True
-#
-#         # Optional password protection
-#         password = request.form.get('password')
-#         if password:
-#             file.password = password
-#
-#         # Optional expiration time
-#         expiration = request.form.get('expiration')
-#         if expiration:
-#             try:
-#                 hours = int(expiration)
-#                 file.expiration_time = datetime.datetime.utcnow() + datetime.timedelta(hours=hours)
-#             except ValueError:
-#                 log_error(user, "Share file; Invalid expiration time", f"{file.filename} ({file_id})")
-#                 return redirect(url_for('share.share_file', file_id=file.id))
-#
-#         db.session.commit()
-#         log_info(user, "Share file; File shared", f"{file.filename} ({file_id})")
-#         return redirect(url_for('files.files'))
-#
-#     return render_template('share_file.html', file=file)
-# @share_bp.route('/shared/<share_url>', methods=['GET', 'POST'])
-# def access_shared_file(share_url):
-#     file = File.query.filter_by(share_url=share_url, is_public=True).first_or_404()
-#
-#     # Check if the file has expired
-#     utcnow = datetime.datetime.utcnow()
-#     if file.expiration_time and utcnow > file.expiration_time:
-#         log_warning(None, "Access shared file; File expired", f"{file.filename} ({file.id})")
-#         return redirect(url_for('home.home'))
-#
-#     # Check for password protection
-#     if file.password:
-#         if request.method == 'POST':
-#             password = request.form.get('password')
-#             if password == file.password:
-#                 return send_from_directory(os.path.dirname(file.filepath), os.path.basename(file.filepath),
-#                                            as_attachment=True)
-#             else:
-#                 flash('Incorrect password.', 'error')
-#         return render_template('access_shared_file.html', file=file)
-#     else:
-#         # No password, proceed to download
-#         return send_from_directory(os.path.dirname(file.filepath), os.path.basename(file.filepath), as_attachment=True)
+share_bp = Blueprint('share_bp', __name__)
 
+def generate_share_key():
+    return str(uuid.uuid4())  # or any random string generator
+@share_bp.route('/file/<int:file_id>', methods=['POST'])
+@login_required
+def toggle_share_file(file_id):
+    """
+    Toggle share state of a file.
+    If not currently shared, create a new Share record.
+    If already shared, revoke (delete) the share.
+
+    Body can have: { "password": "...", "revoke": false }
+    """
+    user = g.user
+    data = request.get_json() or {}
+    password = data.get('password')  # optional
+    revoke = data.get('revoke', False)
+
+    # Check if file belongs to user
+    file_obj = File.query.filter_by(id=file_id, user_id=user.id).first()
+    if not file_obj:
+        return jsonify({"error": "File not found or not owned by user"}), 404
+
+    # Check if share already exists
+    existing_share = Share.query.filter_by(
+        owner_id=user.id,
+        object_type='file',
+        object_id=file_id
+    ).first()
+
+    if revoke:
+        # Revoke (delete) existing share
+        if existing_share:
+            db.session.delete(existing_share)
+            db.session.commit()
+            return jsonify({"message": "Share revoked"}), 200
+        else:
+            return jsonify({"error": "File is not shared"}), 400
+    else:
+        # Create or update share
+        if not existing_share:
+            new_share = Share(
+                owner_id=user.id,
+                object_type='file',
+                object_id=file_id,
+                share_key=generate_share_key(),
+                permission='read',
+                # Store hashed password if provided
+                password=generate_password_hash(password) if password else None
+            )
+            db.session.add(new_share)
+            db.session.commit()
+            return jsonify({
+                "message": "File shared successfully",
+                "share_key": new_share.share_key
+            }), 201
+        else:
+            # If already shared, consider updating password
+            existing_share.password = generate_password_hash(password) if password else None
+            db.session.commit()
+            return jsonify({
+                "message": "Share already existed, password updated",
+                "share_key": existing_share.share_key
+            }), 200
+
+
+@share_bp.route('/s/<share_key>', methods=['GET'])
+def public_share_page(share_key):
+    """
+    Render or return data for the share page.
+    This can be a minimal page or JSON response
+    that your frontend uses to render the share page.
+    """
+    share = Share.query.filter_by(share_key=share_key).first()
+    if not share:
+        abort(404, "Invalid share key")
+    if share.is_expired:
+        abort(410, "Share link expired")
+
+    # Confirm it's for a file
+    if share.object_type != 'file':
+        abort(400, "Currently only file shares are supported")
+
+    # We can return a minimal HTML or JSON for your React app to handle
+    file_id = share.object_id
+    file_obj = File.query.filter_by(id=file_id).first()
+    if not file_obj:
+        abort(404, "File not found")
+
+    # Return basic info, let front-end handle the password prompt if needed
+    return jsonify({
+        "filename": file_obj.filename,
+        "needs_password": share.password is not None
+    })
+@share_bp.route('/s/<share_key>/download', methods=['POST'])
+def public_share_download(share_key):
+    """
+    Attempt to download the file. If password is set, user must provide correct password.
+    The request can have JSON body with {"password": "..."} if needed.
+    """
+    share = Share.query.filter_by(share_key=share_key).first()
+    if not share:
+        abort(404, "Invalid share key")
+    if share.is_expired:
+        abort(410, "Share link expired")
+
+    data = request.get_json() or {}
+    provided_password = data.get('password', None)
+
+    # If the share has a hashed password, validate
+    if share.password:
+        if not provided_password or not check_password_hash(share.password, provided_password):
+            abort(403, "Invalid or missing password")
+
+    # All good, proceed with file download
+    file_obj = File.query.filter_by(id=share.object_id).first()
+    if not file_obj:
+        abort(404, "File not found")
+
+    if not os.path.exists(file_obj.filepath):
+        abort(404, "File missing on server")
+
+    return send_file(
+        file_obj.filepath,
+        as_attachment=True,
+        download_name=file_obj.filename
+    )
 
