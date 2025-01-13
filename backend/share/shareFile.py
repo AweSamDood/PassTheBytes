@@ -1,6 +1,6 @@
 import os
 import uuid
-from flask import Blueprint, request, g, jsonify, send_file, abort
+from flask import Blueprint, request, g, jsonify, send_file, abort, Response
 from backend.auth.decorators import login_required
 from backend.models import db, File, Share
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -122,16 +122,35 @@ def public_share_download(share_key):
             abort(403, "Invalid or missing password")
 
     # All good, proceed with file download
-    file_obj = File.query.filter_by(id=share.object_id).first()
-    if not file_obj:
+    file = File.query.filter_by(id=share.object_id).first()
+    if not file:
         abort(404, "File not found")
 
-    if not os.path.exists(file_obj.filepath):
+    if not os.path.exists(file.filepath):
         abort(404, "File missing on server")
 
-    return send_file(
-        file_obj.filepath,
-        as_attachment=True,
-        download_name=file_obj.filename
-    )
+    try:
+        # Instead of using send_file, we create a generator to stream the file contents.
+        def generate():
+            with open(file.filepath, 'rb') as f:
+                while True:
+                    chunk = f.read(8192)  # 8 KB per iteration
+                    if not chunk:
+                        break
+                    yield chunk
+
+        # Build streaming response
+        response = Response(
+            generate(),
+            mimetype='application/octet-stream'
+        )
+        # Set headers for file download
+        response.headers['Content-Disposition'] = f'attachment; filename="{file.filename}"'
+        response.headers['X-Filename'] = file.filename
+        response.headers['Access-Control-Expose-Headers'] = 'X-Filename'
+        return response
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': 'Failed to download file.'}), 500
+
 

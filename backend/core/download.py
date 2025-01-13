@@ -2,7 +2,7 @@ import os
 import tempfile
 import zipfile
 
-from flask import g, send_file, jsonify, make_response, request
+from flask import g, send_file, jsonify, make_response, request, Response
 
 from backend.auth.decorators import login_required
 from backend.core.view import files_bp
@@ -16,25 +16,42 @@ def download(file_id):
     user = g.user
     file = File.query.get_or_404(file_id)
 
+    # Security check
     if file.user_id != user.id:
         log_warning(user, "Download; Access denied", f"{file.filename} ({file_id})")
         return jsonify({'success': False, 'error': 'Access denied.'}), 403
 
+    # Check existence
     if not os.path.exists(file.filepath):
         log_error(user, "Download; File not found", f"{file.filename} ({file_id})")
         return jsonify({'success': False, 'error': 'File not found on server.'}), 404
 
     try:
-        response = make_response(send_file(file.filepath, as_attachment=True))
+        # Instead of using send_file, we create a generator to stream the file contents.
+        def generate():
+            with open(file.filepath, 'rb') as f:
+                while True:
+                    chunk = f.read(8192)  # 8 KB per iteration
+                    if not chunk:
+                        break
+                    yield chunk
+
+        # Build streaming response
+        response = Response(
+            generate(),
+            mimetype='application/octet-stream'
+        )
+        # Set headers for file download
         response.headers['Content-Disposition'] = f'attachment; filename="{file.filename}"'
         response.headers['X-Filename'] = file.filename
         response.headers['Access-Control-Expose-Headers'] = 'X-Filename'
+
         log_info(user, "Download; File downloaded", f"{file.filename} ({file_id})")
         return response
+
     except Exception as e:
         log_error(user, "Download; Failed to download file", f"{file.filename} ({file_id})", e)
         return jsonify({'success': False, 'error': 'Failed to download file.'}), 500
-
 
 
 @files_bp.route('/download_multiple_items', methods=['POST'])
