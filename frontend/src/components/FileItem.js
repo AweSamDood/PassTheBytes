@@ -111,7 +111,7 @@ const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
                     )}
                 </div>
                 <div className="file-size">
-                    {record.size ? `${(record.size / 1024 / 1024).toFixed(2)} MB` : '-'}
+                    {record.isDirectory ? '' : `${(record.size / 1024 / 1024).toFixed(2)} MB`}
                 </div>
             </div>
             <div className="file-actions">
