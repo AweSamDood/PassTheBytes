@@ -8,7 +8,7 @@ const { Dragger } = Upload;
 
 // Configuration
 const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
-const MAX_UPLOAD_FILES = 15;       // Maximum files allowed in total
+const MAX_UPLOAD_FILES = 200;       // Maximum files allowed in total
 
 /**
  * Single-concurrency chunked-uploader:
