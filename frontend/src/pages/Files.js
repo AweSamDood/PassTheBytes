@@ -181,7 +181,7 @@ const Files = ({ toggleTheme, isDarkMode }) => {
 
     return (
         <div>
-            <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} />
+            <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} fetchFiles={fetchFiles} />
             <h1>{user ? `${user.username}'s files` : ' '}</h1>
             <StorageInfo user={user}/>
 
