@@ -22,3 +22,4 @@ class Config:
     PREMIUM_DISCORD_USER_ID = os.getenv('PREMIUM_DISCORD_USER_ID', 0)
     PREFERRED_URL_SCHEME = 'https'
     FRONTEND_URI = os.getenv('FRONTEND_URI', 'https://localhost:3000')
+    MONITOR_SERVICE_URL = os.getenv('MONITOR_SERVICE_URL', 'http://localhost:61208/api/3/all')

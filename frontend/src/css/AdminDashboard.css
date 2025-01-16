@@ -1,0 +1,11 @@
+.admin-dashboard-content {
+    padding: 20px;
+    background-color: var(--background-color, #fff);
+    color: var(--text-color, #000);
+    min-height: calc(100vh - 60px);
+}
+
+.admin-dashboard-content.dark-mode {
+    background-color: var(--background-color-dark, #333);
+    color: var(--text-color-dark, #fff);
+}

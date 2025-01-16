@@ -17,6 +17,24 @@
     cursor: pointer; /* Add this line to change the cursor */
 }
 
+.adminButton {
+    padding: 8px 16px;
+    /*grayish colour*/
+    background-color: #f0f2f5;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 8px;
+}
+/*admin button text make it dark*/
+.adminButton:hover {
+    background-color: #d9d9d9;
+}
+.adminButtonText {
+    color: #333;
+}
+
 .toggleButton {
     padding: 8px 16px;
     background-color: #1677ff;

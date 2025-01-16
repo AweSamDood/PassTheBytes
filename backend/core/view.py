@@ -2,6 +2,7 @@ from typing import Optional
 from flask import Blueprint, request, g, jsonify
 from backend.auth.decorators import login_required
 from backend.models import File, Directory, Share
+from backend.user import userData
 
 files_bp = Blueprint('files', __name__)
 @files_bp.route('/files', methods=['GET'])
@@ -46,12 +47,7 @@ def files():
     breadcrumbs.insert(0, {'id': None, 'name': 'Root'})  # Add Root as the starting point
 
     # Include user's storage information
-    user_data = {
-        'id': user.id,
-        'username': user.username,
-        'used_space': user.used_space,
-        'quota': user.quota
-    }
+    user_data = userData(user)
 
     return jsonify({
         'files': files_data,

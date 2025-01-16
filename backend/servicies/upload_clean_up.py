@@ -8,18 +8,18 @@ from flask import Blueprint
 
 from backend.helpers import log_info, log_error
 
-files_bp = Blueprint('files', __name__)
-
 CLEANUP_INTERVAL = 5*60  # 5 minutes
 STALE_THRESHOLD = 10*60  # 10 minutes
 
 cleanup_lock = threading.Lock()
 
+services_bp = Blueprint('services', __name__)
 
 # Start the cleanup thread when the blueprint is registered
-@files_bp.record
+@services_bp.record
 def on_load(state):
     app = state.app
+    print('Starting cleanup thread')
     cleanup_thread = threading.Thread(target=cleanup_stale_temp_dirs, args=(app,), daemon=True)
     cleanup_thread.start()
 

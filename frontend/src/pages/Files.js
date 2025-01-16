@@ -7,10 +7,10 @@ import FileItem from '../components/FileItem';
 import StorageInfo from '../components/StorageInfo';
 import UploadManager from '../components/UploadManager';
 
-const Files = ({ toggleTheme, isDarkMode }) => {
+const Files = ({ toggleTheme, isDarkMode, userApp }) => {
     const [files, setFiles] = useState([]);
     const [directories, setDirectories] = useState([]);
-    const [user, setUser] = useState(null);
+    const [user, setUser] = useState(userApp);
     const [currentDirId, setCurrentDirId] = useState(null);
     const [currentDirectory, setCurrentDirectory] = useState(null);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -20,7 +20,6 @@ const Files = ({ toggleTheme, isDarkMode }) => {
 
     useEffect(() => {
         fetchFiles();
-        fetchUserInfo();
     }, []);
 
     const fetchFiles = (dirId = null) => {
@@ -44,13 +43,6 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                 }
             })
             .catch(err => console.error(err));
-    };
-
-    const fetchUserInfo = () => {
-        apiClient.get('/user')
-            .then(response => {
-                setUser(response.data.user);
-            }).catch(err => console.error(err));
     };
 
     const bulkDelete = () => {
@@ -77,7 +69,6 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                 })
                     .then(response => {
                         message.success(response.data.message);
-                        fetchUserInfo();
                         fetchFiles(currentDirId);
                     })
                     .catch(error => {
@@ -165,7 +156,6 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                     onDirectoryClick={onDirectoryClick}
                     onUpdate={() => {
                         fetchFiles(currentDirId);
-                        fetchUserInfo();
                     }}
                 />
             )
@@ -181,7 +171,7 @@ const Files = ({ toggleTheme, isDarkMode }) => {
 
     return (
         <div>
-            <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} fetchFiles={fetchFiles} />
+            <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />
             <h1>{user ? `${user.username}'s files` : ' '}</h1>
             <StorageInfo user={user}/>
 
@@ -189,7 +179,6 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                 currentDirId={currentDirId}
                 onUploadComplete={() => {
                     fetchFiles(currentDirId);
-                    fetchUserInfo();
                 }}
             />
 

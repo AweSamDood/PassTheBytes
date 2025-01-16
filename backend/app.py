@@ -12,6 +12,7 @@ from backend.config import Config
 from backend.core.view import files_bp
 from backend.helpers import print_loaded_config
 from backend.models import db
+from backend.servicies import services_bp
 from backend.share.shareFile import share_bp
 from backend.user import user_bp
 
@@ -51,6 +52,7 @@ app.register_blueprint(auth_bp, url_prefix='/api')
 app.register_blueprint(share_bp, url_prefix='/api/share')
 app.register_blueprint(files_bp, url_prefix='/api')
 app.register_blueprint(user_bp, url_prefix='/api')
+app.register_blueprint(services_bp, url_prefix='/api/services')
 
 print(app.url_map)
 with app.app_context():

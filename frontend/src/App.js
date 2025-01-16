@@ -3,20 +3,21 @@ import { ConfigProvider, theme } from 'antd';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Files from './pages/Files';
+import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 import PublicSharePage from "./pages/ShareFilePage";
+import apiClient from './services/apiClient';
 
 function App() {
     const [isDarkMode, setIsDarkMode] = useState(() => {
-        // Retrieve the theme preference from localStorage
         const savedTheme = localStorage.getItem('isDarkMode');
         return savedTheme ? JSON.parse(savedTheme) : false;
     });
+    const [user, setUser] = useState(null);
 
     const toggleTheme = () => {
         setIsDarkMode((prev) => {
             const newTheme = !prev;
-            // Save the theme preference to localStorage
             localStorage.setItem('isDarkMode', JSON.stringify(newTheme));
             return newTheme;
         });
@@ -26,10 +27,21 @@ function App() {
         const body = document.body;
         if (isDarkMode) {
             body.classList.add('dark-mode');
+            document.documentElement.style.setProperty('--background-color', '#333');
+            document.documentElement.style.setProperty('--text-color', '#fff');
         } else {
             body.classList.remove('dark-mode');
+            document.documentElement.style.setProperty('--background-color', '#fff');
+            document.documentElement.style.setProperty('--text-color', '#000');
         }
     }, [isDarkMode]);
+
+    useEffect(() => {
+        apiClient.get('/user')
+            .then(response => {
+                setUser(response.data.user);
+            }).catch(err => console.error(err));
+    }, []);
 
     return (
         <ConfigProvider
@@ -38,7 +50,6 @@ function App() {
                 token: {
                     colorPrimary: isDarkMode ? '#00b96b' : '#1677ff',
                     borderRadius: 2,
-                    // Add other tokens as needed
                 },
             }}
         >
@@ -47,7 +58,11 @@ function App() {
                     <Route path="/" element={<Login />} />
                     <Route
                         path="/files"
-                        element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode} />}
+                        element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}
+                    />
+                    <Route
+                        path="/admin"
+                        element={<AdminDashboard toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}
                     />
                     <Route path="/share/:shareKey" element={<PublicSharePage />} />
                 </Routes>
