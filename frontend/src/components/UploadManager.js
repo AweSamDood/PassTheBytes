@@ -246,7 +246,7 @@ const UploadManager = ({ currentDirId, onUploadComplete }) => {
                 </p>
                 <p className="ant-upload-text">Click or drag files here to upload</p>
                 <p className="ant-upload-hint">
-                    Single file at a time (chunked). Max 15 total.
+                    Single file at a time (chunked). Max {MAX_UPLOAD_FILES} total.
                 </p>
             </Dragger>
 
