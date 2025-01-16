@@ -244,7 +244,7 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                         key: `file-${file.id}`,
                         id: file.id,
                         name: file.filename,
-                        size: file.filesize,
+                        size: file.size,
                         isDirectory: false,
                         share_key: file.share_key,
                     }))

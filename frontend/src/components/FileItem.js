@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Button, Modal, message, Popconfirm, Input } from 'antd';
 import { DownloadOutlined, DeleteOutlined, ShareAltOutlined, LinkOutlined } from '@ant-design/icons';
 import apiClient from '../services/apiClient';
+import '../css/FileItem.css';
 
 const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
     const [shareKey, setShareKey] = useState(record.share_key || null);
     const isShared = !!shareKey;
     const [shareModalVisible, setShareModalVisible] = useState(false);
     const [password, setPassword] = useState('');
-
 
     const downloadFile = (fileId) => {
         apiClient.get(`/download/${fileId}`, { responseType: 'blob' })
@@ -55,12 +55,11 @@ const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
     };
 
     const handleShareOk = () => {
-        // Create share with optional password
         apiClient.post(`/share/file/${record.id}`, { password })
             .then(res => {
                 message.success(res.data.message);
-                setShareKey(res.data.share_key);  // store new shareKey
-                onUpdate();  // might re-fetch files
+                setShareKey(res.data.share_key);
+                onUpdate();
             })
             .catch(err => {
                 console.error(err);
@@ -91,7 +90,6 @@ const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
 
     const copyShareLink = () => {
         if (!shareKey) return;
-        // The link could be something like: https://<your-domain>/share/<shareKey>
         const linkToCopy = `${window.location.origin}/share/${shareKey}`;
         navigator.clipboard.writeText(linkToCopy)
             .then(() => {
@@ -103,23 +101,20 @@ const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
     };
 
     return (
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-            {/* Left side: Directory or file name */}
-            <div>
-                {record.isDirectory ? (
-                    <a onClick={() => onDirectoryClick(record.id)}>{record.name}</a>
-                ) : (
-                    record.name
-                )}
+        <div className="file-item">
+            <div className="file-name-size">
+                <div className="file-name">
+                    {record.isDirectory ? (
+                        <a onClick={() => onDirectoryClick(record.id)}>{record.name}</a>
+                    ) : (
+                        record.name
+                    )}
+                </div>
+                <div className="file-size">
+                    {record.size ? `${(record.size / 1024 / 1024).toFixed(2)} MB` : '-'}
+                </div>
             </div>
-
-            {/* Middle: file size if not directory */}
-            <div>
-                {record.filesize ? `${(record.filesize / 1024 / 1024).toFixed(2)} MB` : '-'}
-            </div>
-
-            {/* Right side: actions */}
-            <div>
+            <div className="file-actions">
                 {!record.isDirectory && (
                     <>
                         <Button
@@ -127,19 +122,15 @@ const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
                             onClick={() => downloadFile(record.id)}
                             style={{ marginRight: 8 }}
                         />
-
                         <Popconfirm
                             title="Are you sure you want to delete this file?"
                             onConfirm={() => confirmDelete(record.id)}
                             okText="Yes"
                             cancelText="No"
                         >
-                            <Button icon={<DeleteOutlined />} danger style={{ marginRight: 8 }}/>
+                            <Button icon={<DeleteOutlined />} danger style={{ marginRight: 8 }} />
                         </Popconfirm>
-
-                        {/* SHARE / COPY LINK / REVOKE */}
                         {!isShared ? (
-                            // If not shared, show a single "Share" button
                             <Button
                                 icon={<ShareAltOutlined />}
                                 onClick={showShareModal}
@@ -147,7 +138,6 @@ const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
                                 Share
                             </Button>
                         ) : (
-                            // If shared, show "Copy Link" and "Revoke Share"
                             <>
                                 <Button
                                     icon={<LinkOutlined />}
@@ -168,8 +158,6 @@ const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
                     </>
                 )}
             </div>
-
-            {/* SHARE MODAL */}
             <Modal
                 title="Share File"
                 open={shareModalVisible}

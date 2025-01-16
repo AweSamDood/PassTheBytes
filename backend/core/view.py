@@ -25,8 +25,8 @@ def files():
         files_data.append({
             'id': file.id,
             'filename': file.filename,
-            'filesize': file.filesize,
-            'share_key': share_key  # None if not shared
+            'size': file.filesize,
+            'share_key': share_key
         })
 
     dirs_data = [

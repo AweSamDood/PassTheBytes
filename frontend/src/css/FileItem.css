@@ -1,0 +1,24 @@
+/* FileItem.css */
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-name-size {
+    display: flex;
+    align-items: center;
+}
+
+.file-name {
+    margin-right: 5px; /* Minimal space between file name and file size */
+}
+
+.file-size {
+    color: #888; /* Optional: Change the color of the file size */
+}
+
+.file-actions {
+    display: flex;
+    align-items: center;
+}
