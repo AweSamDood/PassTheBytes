@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; // For navigation
 import apiClient from '../services/apiClient';
+import { DiscordLoginButton } from 'react-social-login-buttons';
 
 const Login = () => {
     const [authUrl, setAuthUrl] = useState(null);
@@ -35,9 +36,9 @@ const Login = () => {
 
     return (
         <div style={styles.login}>
-            <h1>Login</h1>
+            <h1>PassTheBytes</h1>
             {authUrl ? (
-                <button onClick={handleLogin}>Login with Discord</button>
+                <DiscordLoginButton onClick={handleLogin} />
             ) : (
                 <p>Loading...</p>
             )}
@@ -52,6 +53,10 @@ const styles = {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
+        maxWidth: '400px',
+        margin: '0 auto',
+        textAlign: 'center',
     },
 };
+
 export default Login;

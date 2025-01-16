@@ -101,7 +101,7 @@ def public_share_page(share_key):
         "filename": file_obj.filename,
         "needs_password": share.password is not None
     })
-@share_bp.route('/s/<share_key>/download', methods=['POST','GET'])
+@share_bp.route('/s/<share_key>/download', methods=['POST'])
 def public_share_download(share_key):
     """
     Attempt to download the file. If password is set, user must provide correct password.
