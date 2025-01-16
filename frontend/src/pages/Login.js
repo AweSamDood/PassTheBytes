@@ -53,7 +53,7 @@ const styles = {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        maxWidth: '400px',
+        maxWidth: '250px',
         margin: '0 auto',
         textAlign: 'center',
     },

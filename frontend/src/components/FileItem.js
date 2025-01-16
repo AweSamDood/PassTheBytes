@@ -4,14 +4,11 @@ import { DownloadOutlined, DeleteOutlined, ShareAltOutlined, LinkOutlined } from
 import apiClient from '../services/apiClient';
 
 const FileItem = ({ record, onDirectoryClick, onUpdate }) => {
+    const [shareKey, setShareKey] = useState(record.share_key || null);
+    const isShared = !!shareKey;
     const [shareModalVisible, setShareModalVisible] = useState(false);
     const [password, setPassword] = useState('');
 
-    // If share_key exists, it's shared
-    const [shareKey, setShareKey] = useState(record.share_key || null);
-
-    // For convenience, determine if it's shared
-    const isShared = !!shareKey;
 
     const downloadFile = (fileId) => {
         apiClient.get(`/download/${fileId}`, { responseType: 'blob' })

@@ -28,6 +28,7 @@ const Files = ({ toggleTheme, isDarkMode }) => {
         const url = dirId ? `/files?dir_id=${dirId}` : '/files';
         apiClient.get(url)
             .then(response => {
+                console.log("response.data", response.data);
                 setFiles(response.data.files);
                 setDirectories(response.data.directories);
                 setUser(response.data.user);
@@ -245,6 +246,7 @@ const Files = ({ toggleTheme, isDarkMode }) => {
                         name: file.filename,
                         size: file.filesize,
                         isDirectory: false,
+                        share_key: file.share_key,
                     }))
                 ]}
                 columns={columns}
