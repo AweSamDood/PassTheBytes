@@ -34,6 +34,8 @@ def api_callback():
 
     if request.args.get('state') != session['oauth_state']:
         log_error(None,"Callback","OAuth state mismatch. Please restart the login process.")
+        # log the state and oauthe state
+        log_error(None,"Callback",f"Request state: {request.args.get('state')}, Session state: {session['oauth_state']}")
         return jsonify({'error': 'OAuth state mismatch. Please restart the login process.'}), 400
 
     redirect_uri = current_app.config['REDIRECT_URI']
