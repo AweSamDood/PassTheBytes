@@ -13,17 +13,23 @@ token_url = 'https://discord.com/api/oauth2/token'
 
 @auth_bp.route('/login', methods=['GET'])
 def api_login():
-    # Clear the session state to handle multiple logins from different devices
-    session.pop('oauth_state', None)
-    session.pop('oauth_token', None)
-    session.pop('discord_user', None)
-    session.pop('user_id', None)
+    if 'oauth_state' in session:
+        # If a valid state already exists, reuse it
+        log_info(None, "Login", "Reusing existing OAuth state.")
+        discord = OAuth2Session(current_app.config['CLIENT_ID'], redirect_uri=current_app.config['REDIRECT_URI'], scope=['identify', 'email'])
+        authorization_url = discord.authorization_url(authorization_base_url, state=session['oauth_state'])[0]
+    else:
+        # Generate a new state
+        session.pop('oauth_state', None)
+        session.pop('oauth_token', None)
+        session.pop('discord_user', None)
+        session.pop('user_id', None)
+        redirect_uri = current_app.config['REDIRECT_URI']
+        discord = OAuth2Session(current_app.config['CLIENT_ID'], redirect_uri=redirect_uri, scope=['identify', 'email'])
+        authorization_url, state = discord.authorization_url(authorization_base_url)
+        session['oauth_state'] = state
+        log_info(None, "Login", f"User initiated login process. {state}")
 
-    redirect_uri = current_app.config['REDIRECT_URI']
-    discord = OAuth2Session(current_app.config['CLIENT_ID'], redirect_uri=redirect_uri, scope=['identify', 'email'])
-    authorization_url, state = discord.authorization_url(authorization_base_url)
-    log_info(None,"Login",f"User initiated login process. {state}")
-    session['oauth_state'] = state
     return jsonify({'authorization_url': authorization_url}), 200
 
 

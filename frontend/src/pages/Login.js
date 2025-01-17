@@ -8,21 +8,29 @@ const Login = () => {
     const navigate = useNavigate(); // React Router hook for redirection
 
     useEffect(() => {
-        // Check if the user is already authenticated
+        let isMounted = true;
+
         apiClient.get('/authenticated')
             .then(response => {
-                if (response.data.isAuthenticated) {
-                    navigate('/files'); // Redirect to files page
-                } else {
-                    // Fetch the Discord login URL if not authenticated
-                    apiClient.get('/login')
-                        .then(response => {
-                            setAuthUrl(response.data.authorization_url);
-                        })
-                        .catch(err => console.error(err));
+                if (isMounted) {
+                    if (response.data.isAuthenticated) {
+                        navigate('/files');
+                    } else {
+                        apiClient.get('/login')
+                            .then(response => {
+                                if (isMounted) {
+                                    setAuthUrl(response.data.authorization_url);
+                                }
+                            })
+                            .catch(err => console.error(err));
+                    }
                 }
             })
             .catch(err => console.error(err));
+
+        return () => {
+            isMounted = false;
+        };
     }, [navigate]);
 
     // Redirect to Discord login when user clicks
