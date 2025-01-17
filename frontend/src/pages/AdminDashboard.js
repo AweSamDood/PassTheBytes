@@ -1,35 +1,92 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Navbar from '../components/NavBar';
 import '../css/AdminDashboard.css';
+import { Line } from '@ant-design/plots';
 import apiClient from "../services/apiClient";
 
 const AdminDashboard = ({ toggleTheme, isDarkMode, user }) => {
-    const [performanceInfo, setPerformanceInfo] = useState(null);
+    const [performanceData, setPerformanceData] = useState([]);
+    const intervalRef = useRef(null);
 
     const fetchPerformanceInfo = () => {
         const url = '/services/server_info';
-        apiClient.get(url).then((response) => {
-            console.log("response.data", response.data);
-            setPerformanceInfo(response.data);
-        }).catch(err => console.error(err));
-    }
+        apiClient
+            .get(url)
+            .then((response) => {
+                setPerformanceData((prevData) => {
+                    const newData = [...prevData, response.data];
+                    return newData.slice(-60); // Keep only the last 60 entries
+                });
+            })
+            .catch((err) => console.error(err));
+    };
 
     useEffect(() => {
-        fetchPerformanceInfo();
+        intervalRef.current = setInterval(fetchPerformanceInfo, 1000);
+
+        return () => {
+            clearInterval(intervalRef.current);
+        };
     }, []);
+
+    const renderThreadCharts = () => {
+        if (performanceData.length === 0) return <p>Loading...</p>;
+
+        const threadData = performanceData.flatMap((entry, index) =>
+            entry.quicklook.percpu.map((thread, threadIndex) => ({
+                time: index,
+                cpu: thread.total,
+                thread: `Thread ${threadIndex + 1}`,
+                threadIndex: threadIndex
+            }))
+        );
+
+        const threadCharts = Array.from({ length: 8 }, (_, threadIndex) => {
+            const data = threadData.filter(d => d.threadIndex === threadIndex);
+            const config = {
+                data: data,
+                xField: 'time',
+                yField: 'cpu',
+                seriesField: 'thread',
+                smooth: true,
+                height: 200,
+                yAxis: {
+                    min: 0,
+                    max: 100,
+                    label: {
+                        formatter: (v) => `${v}%` // Optional: Appends '%' to the values
+                    },
+                },
+                tooltip: {
+                    showMarkers: false,
+                },
+                animation: {
+                    appear: {
+                        animation: 'path-in',
+                        duration: 1000,
+                    },
+                },
+            };
+
+            return (
+                <div className="thread-chart" key={threadIndex}>
+                    <Line {...config} />
+                </div>
+            );
+        });
+
+        return <div className="thread-grid">{threadCharts}</div>;
+    };
+
 
     return (
         <div>
             <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />
             <div className={`admin-dashboard-content ${isDarkMode ? 'dark-mode' : ''}`}>
                 <h1>Admin Dashboard</h1>
-                <div className="performance-info">
-                    <h2>Performance Info</h2>
-                    {performanceInfo && (
-                        <pre>
-                            {JSON.stringify(performanceInfo, null, 2)}
-                        </pre>
-                    )}
+                <div className="performance-section">
+                    <h2>Thread Performance</h2>
+                    {renderThreadCharts()}
                 </div>
             </div>
         </div>

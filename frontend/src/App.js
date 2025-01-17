@@ -11,7 +11,7 @@ import apiClient from './services/apiClient';
 function App() {
     const [isDarkMode, setIsDarkMode] = useState(() => {
         const savedTheme = localStorage.getItem('isDarkMode');
-        return savedTheme ? JSON.parse(savedTheme) : false;
+        return savedTheme ? JSON.parse(savedTheme) : true;
     });
     const [user, setUser] = useState(null);
 

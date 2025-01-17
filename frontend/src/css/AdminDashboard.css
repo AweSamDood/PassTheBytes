@@ -9,3 +9,19 @@
     background-color: var(--background-color-dark, #333);
     color: var(--text-color-dark, #fff);
 }
+/* AdminDashboard.css */
+.thread-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* Two columns for the grid */
+    grid-template-rows: repeat(4, auto); /* Four rows, auto height */
+    gap: 30px; /* Reduced spacing between charts */
+    width: 800px; /* Fixed width for the grid container */
+    /*margin: 0 auto; /* Center the grid container */
+}
+
+.thread-chart {
+    width: 100%; /* Ensures the chart spans its grid container */
+    height: 150px; /* Fixed height for the charts */
+    margin: auto; /* Removes any margin around the chart */
+    box-sizing: border-box; /* Ensures padding and border are included in the element's total width and height */
+}
