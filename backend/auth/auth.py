@@ -22,7 +22,7 @@ def api_login():
     redirect_uri = current_app.config['REDIRECT_URI']
     discord = OAuth2Session(current_app.config['CLIENT_ID'], redirect_uri=redirect_uri, scope=['identify', 'email'])
     authorization_url, state = discord.authorization_url(authorization_base_url)
-    log_info(None,"Login","User initiated login process.")
+    log_info(None,"Login",f"User initiated login process. {state}")
     session['oauth_state'] = state
     return jsonify({'authorization_url': authorization_url}), 200
 
