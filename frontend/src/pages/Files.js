@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, message, Modal, Input, Breadcrumb } from 'antd';
 import { HomeOutlined } from '@ant-design/icons';
+import { Helmet } from 'react-helmet-async';
 import apiClient from '../services/apiClient';
 import Navbar from '../components/NavBar';
 import FileItem from '../components/FileItem';
@@ -171,6 +172,13 @@ const Files = ({ toggleTheme, isDarkMode, userApp }) => {
 
     return (
         <div>
+            <Helmet>
+                <title>Files | PassTheBytes</title>
+                <meta name="description" content="Access and manage your files securely on PassTheBytes. Navigate directories, upload files, and organize your storage seamlessly." />
+                <meta property="og:title" content="Files | PassTheBytes" />
+                <meta property="og:description" content="Access and manage your files securely on PassTheBytes." />
+                {/* TODO <meta property="og:image" content="https://yourwebsite.com/placeholder-icon.png" />*/}
+            </Helmet>
             <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />
             <h1>{user ? `${user.username}'s files` : ' '}</h1>
             <StorageInfo user={user}/>

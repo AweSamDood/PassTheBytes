@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // For navigation
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
 import { DiscordLoginButton } from 'react-social-login-buttons';
+import { Helmet } from 'react-helmet-async';
+import '../css/Login.css';
 
 const Login = () => {
     const [authUrl, setAuthUrl] = useState(null);
-    const navigate = useNavigate(); // React Router hook for redirection
+    const navigate = useNavigate();
 
     useEffect(() => {
         let isMounted = true;
@@ -33,7 +35,6 @@ const Login = () => {
         };
     }, [navigate]);
 
-    // Redirect to Discord login when user clicks
     const handleLogin = () => {
         if (authUrl) {
             window.location.href = authUrl; // Redirect to Discord OAuth
@@ -41,7 +42,20 @@ const Login = () => {
     };
 
     return (
-        <div style={styles.login}>
+        <div className="login-main">
+            <Helmet>
+                <title>Login | PassTheBytes</title>
+                <meta
+                    name="description"
+                    content="Log in to PassTheBytes using Discord. Secure and private access to your personal file-sharing platform."
+                />
+                <meta property="og:title" content="Login | PassTheBytes" />
+                <meta
+                    property="og:description"
+                    content="Log in to PassTheBytes using Discord. Secure and private access to your personal file-sharing platform."
+                />
+                <meta property="og:image" content="https://yourwebsite.com/placeholder-icon.png" />
+            </Helmet>
             <h1>PassTheBytes</h1>
             {authUrl ? (
                 <DiscordLoginButton onClick={handleLogin} />
@@ -52,17 +66,5 @@ const Login = () => {
     );
 };
 
-const styles = {
-    login: {
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        maxWidth: '250px',
-        margin: '0 auto',
-        textAlign: 'center',
-    },
-};
 
 export default Login;

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useParams } from 'react-router-dom';
 import { Input, Button, message } from 'antd';
 import apiClient from '../services/apiClient';
+import '../css/PublicSharePage.css';
 
 const PublicSharePage = () => {
     const { shareKey } = useParams();
@@ -52,20 +54,27 @@ const PublicSharePage = () => {
     };
 
     return (
-        <div style={{ margin: 20 }}>
+        <div className="public-share-page">
+            <Helmet>
+                <title>{filename ? `${filename} | PassTheBytes` : 'File Share | PassTheBytes'}</title>
+                <meta name="description" content={filename ? `Download ${filename} securely on PassTheBytes.` : 'Secure file sharing on PassTheBytes.'} />
+                <meta property="og:title" content={filename ? `${filename} | PassTheBytes` : 'File Share | PassTheBytes'} />
+                <meta property="og:description" content={filename ? `Download ${filename} securely on PassTheBytes.` : 'Secure file sharing on PassTheBytes.'} />
+                {/* TODO <meta property="og:image" content="https://yourwebsite.com/placeholder-icon.png" />*/}
+            </Helmet>
             <h2>File Share</h2>
             {filename ? <p>Filename: {filename}</p> : <p>No file info found.</p>}
             {needsPassword && (
-                <div style={{ marginBottom: 16 }}>
+                <div>
                     <Input.Password
+                        className="password-input"
                         placeholder="Enter password"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
-                        style={{ width: '300px' }}
                     />
                 </div>
             )}
-            <Button type="primary" onClick={downloadFile}>
+            <Button className="download-button" type="primary" onClick={downloadFile}>
                 Download
             </Button>
         </div>

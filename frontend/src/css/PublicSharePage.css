@@ -1,0 +1,23 @@
+.public-share-page {
+    margin: 20px;
+}
+
+.public-share-page h2 {
+    font-size: 24px;
+    margin-bottom: 16px;
+}
+
+.public-share-page p {
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+.public-share-page .password-input {
+    margin-bottom: 16px;
+    width: 300px;
+}
+
+.public-share-page .download-button {
+    font-size: 16px;
+    padding: 8px 16px;
+}

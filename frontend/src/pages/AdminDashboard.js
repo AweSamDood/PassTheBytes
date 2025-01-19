@@ -3,6 +3,7 @@ import Navbar from '../components/NavBar';
 import '../css/AdminDashboard.css';
 import { Line } from '@ant-design/plots';
 import apiClient from "../services/apiClient";
+import { Helmet} from "react-helmet-async";
 
 const AdminDashboard = ({ toggleTheme, isDarkMode, user }) => {
     const [performanceData, setPerformanceData] = useState([]);
@@ -81,6 +82,13 @@ const AdminDashboard = ({ toggleTheme, isDarkMode, user }) => {
 
     return (
         <div>
+            <Helmet>
+                <title>Admin | PassTheBytes</title>
+                <meta name="description" content="Monitor system performance, manage user activity, and ensure server readiness for maintenance on PassTheBytes." />
+                <meta property="og:title" content="Admin | PassTheBytes" />
+                <meta property="og:description" content="Monitor system performance, manage user activity, and ensure server readiness for maintenance on PassTheBytes." />
+                {/* TODO <meta property="og:image" content="https://yourwebsite.com/placeholder-icon.png" />*/}
+            </Helmet>
             <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />
             <div className={`admin-dashboard-content ${isDarkMode ? 'dark-mode' : ''}`}>
                 <h1>Admin Dashboard</h1>

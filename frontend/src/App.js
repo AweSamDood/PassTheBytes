@@ -7,6 +7,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 import PublicSharePage from "./pages/ShareFilePage";
 import apiClient from './services/apiClient';
+import { HelmetProvider } from 'react-helmet-async';
 
 function App() {
     const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -44,30 +45,32 @@ function App() {
     }, []);
 
     return (
-        <ConfigProvider
-            theme={{
-                algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
-                token: {
-                    colorPrimary: isDarkMode ? '#00b96b' : '#1677ff',
-                    borderRadius: 2,
-                },
-            }}
-        >
-            <Router>
-                <Routes>
-                    <Route path="/" element={<Login />} />
-                    <Route
-                        path="/files"
-                        element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}
-                    />
-                    <Route
-                        path="/admin"
-                        element={<AdminDashboard toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}
-                    />
-                    <Route path="/share/:shareKey" element={<PublicSharePage />} />
-                </Routes>
-            </Router>
-        </ConfigProvider>
+        <HelmetProvider>
+            <ConfigProvider
+                theme={{
+                    algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                    token: {
+                        colorPrimary: isDarkMode ? '#00b96b' : '#1677ff',
+                        borderRadius: 2,
+                    },
+                }}
+            >
+                <Router>
+                    <Routes>
+                        <Route path="/" element={<Login />} />
+                        <Route
+                            path="/files"
+                            element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}
+                        />
+                        <Route
+                            path="/admin"
+                            element={<AdminDashboard toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}
+                        />
+                        <Route path="/share/:shareKey" element={<PublicSharePage />} />
+                    </Routes>
+                </Router>
+            </ConfigProvider>
+        </HelmetProvider>
     );
 }
 

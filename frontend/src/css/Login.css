@@ -1,0 +1,9 @@
+.login-main {
+   display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    max-width: 250px;
+    margin: 0 auto;
+    text-align: center;
+}
