@@ -54,7 +54,7 @@ const Login = () => {
                     property="og:description"
                     content="Log in to PassTheBytes using Discord. Secure and private access to your personal file-sharing platform."
                 />
-                <meta property="og:image" content="https://yourwebsite.com/placeholder-icon.png" />
+                {/* TODO <meta property="og:image" content="https://yourwebsite.com/placeholder-icon.png" />*/}
             </Helmet>
             <h1>PassTheBytes</h1>
             {authUrl ? (
