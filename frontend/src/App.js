@@ -61,7 +61,7 @@ function App() {
             >
                 <Router>
                     <Routes>
-                        <Route path="/" element={<Login />} />
+                        <Route path="/" element={<Login isDarkMode={isDarkMode}/>} />
                         <Route
                             path="/files"
                             element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}

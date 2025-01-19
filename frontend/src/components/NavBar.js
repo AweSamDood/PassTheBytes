@@ -16,7 +16,7 @@ const Navbar = ({ toggleTheme, isDarkMode, user }) => {
 
     return (
         <nav className="navbar">
-            <div className="brand" onClick={() => navigate('/files')}>
+            <div className="brand-nav" onClick={() => navigate('/files')}>
                 <img src={Logo} alt="Logo" className="logo-nav" /> {/* Use the logo image */}
             </div>
             <div>

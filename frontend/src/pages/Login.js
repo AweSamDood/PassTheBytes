@@ -6,7 +6,7 @@ import { Helmet } from 'react-helmet-async';
 import '../css/Login.css';
 import Logo from "../assets/Logo.png";
 
-const Login = () => {
+const Login = ({ isDarkMode }) => {
     const [authUrl, setAuthUrl] = useState(null);
     const navigate = useNavigate();
 
@@ -43,7 +43,7 @@ const Login = () => {
     };
 
     return (
-        <div className="login-main">
+        <div className="main-login">
             <Helmet>
                 <title>Login | PassTheBytes</title>
                 <meta
@@ -56,17 +56,20 @@ const Login = () => {
                     content="Log in to PassTheBytes using Discord. Secure and private access to your personal file-sharing platform."
                 />
             </Helmet>
-            <div className="brand">
-                <img src={Logo} alt="Logo" className="logo-login"/>
+            <div className={`login-container ${isDarkMode ? '' : 'light-mode'}`}>
+                <div>
+                    <img src={Logo} alt="Logo" className="login-logo"/>
+                </div>
+                <div className="logo-buttons">
+                    {authUrl ? (
+                        <DiscordLoginButton onClick={handleLogin}/>
+                    ) : (
+                        <p>Loading...</p>
+                    )}
+                </div>
             </div>
-            {authUrl ? (
-                <DiscordLoginButton onClick={handleLogin}/>
-            ) : (
-                <p>Loading...</p>
-            )}
         </div>
     );
 };
-
 
 export default Login;
