@@ -4,6 +4,7 @@ import apiClient from '../services/apiClient';
 import { DiscordLoginButton } from 'react-social-login-buttons';
 import { Helmet } from 'react-helmet-async';
 import '../css/Login.css';
+import Logo from "../assets/Logo.png";
 
 const Login = () => {
     const [authUrl, setAuthUrl] = useState(null);
@@ -54,11 +55,12 @@ const Login = () => {
                     property="og:description"
                     content="Log in to PassTheBytes using Discord. Secure and private access to your personal file-sharing platform."
                 />
-                {/* TODO <meta property="og:image" content="https://yourwebsite.com/placeholder-icon.png" />*/}
             </Helmet>
-            <h1>PassTheBytes</h1>
+            <div className="brand">
+                <img src={Logo} alt="Logo" className="logo-login"/>
+            </div>
             {authUrl ? (
-                <DiscordLoginButton onClick={handleLogin} />
+                <DiscordLoginButton onClick={handleLogin}/>
             ) : (
                 <p>Loading...</p>
             )}

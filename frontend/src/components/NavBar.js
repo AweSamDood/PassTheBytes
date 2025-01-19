@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from "../services/apiClient";
 import '../css/NavBar.css';
+import Logo from '../assets/Logo.png'; // Import the logo image
 
 const Navbar = ({ toggleTheme, isDarkMode, user }) => {
     const navigate = useNavigate();
@@ -15,7 +16,9 @@ const Navbar = ({ toggleTheme, isDarkMode, user }) => {
 
     return (
         <nav className="navbar">
-            <div className="brand" onClick={() => navigate('/files')}>PassTheBytes</div>
+            <div className="brand" onClick={() => navigate('/files')}>
+                <img src={Logo} alt="Logo" className="logo-nav" /> {/* Use the logo image */}
+            </div>
             <div>
                 {user && user.admin && (
                     <button className="adminButton" onClick={() => navigate('/admin')}>

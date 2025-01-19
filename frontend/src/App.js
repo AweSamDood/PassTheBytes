@@ -7,7 +7,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 import PublicSharePage from "./pages/ShareFilePage";
 import apiClient from './services/apiClient';
-import { HelmetProvider } from 'react-helmet-async';
+import { Helmet, HelmetProvider } from 'react-helmet-async';
+import Icon from './assets/Icon.png';
 
 function App() {
     const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -46,6 +47,9 @@ function App() {
 
     return (
         <HelmetProvider>
+            <Helmet>
+                <link rel="icon" type="image/png" href={Icon} sizes="32x32" />
+            </Helmet>
             <ConfigProvider
                 theme={{
                     algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,

@@ -8,3 +8,7 @@
     text-align: center;
     flex-direction: column;
 }
+.logo-login {
+    height: 55px;
+    margin-bottom: 20px;
+}
