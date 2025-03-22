@@ -1,38 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../services/apiClient';
 import { DiscordLoginButton } from 'react-social-login-buttons';
 import { Helmet } from 'react-helmet-async';
 import '../css/Login.css';
 import Logo from "../assets/Logo.png";
+import authService from '../services/authService';
 
 const Login = ({ isDarkMode }) => {
     const [authUrl, setAuthUrl] = useState(null);
+    const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
         let isMounted = true;
+        const controller = new AbortController();
 
-        apiClient.get('/authenticated')
-            .then(response => {
-                if (isMounted) {
-                    if (response.data.isAuthenticated) {
-                        navigate('/files');
-                    } else {
-                        apiClient.get('/login')
-                            .then(response => {
-                                if (isMounted) {
-                                    setAuthUrl(response.data.authorization_url);
-                                }
-                            })
-                            .catch(err => console.error(err));
+        const init = async () => {
+            // Set loading state first
+            setLoading(true);
+
+            try {
+                // Check if already authenticated
+                if (authService.isAuthenticated()) {
+                    const isValid = await authService.validateToken();
+                    if (isMounted) {
+                        if (isValid) {
+                            navigate('/files');
+                            return;
+                        } else {
+                            // Token invalid, clear it
+                            authService.clearTokens();
+                        }
                     }
                 }
-            })
-            .catch(err => console.error(err));
+
+                // Fetch login URL with abort signal to prevent duplicate requests
+                if (isMounted) {
+                    const url = await authService.login();
+                    setAuthUrl(url);
+                }
+            } catch (err) {
+                if (isMounted) {
+                    console.error("Login initialization error:", err);
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        // Run once
+        init();
 
         return () => {
             isMounted = false;
+            controller.abort();
         };
     }, [navigate]);
 
@@ -61,10 +84,12 @@ const Login = ({ isDarkMode }) => {
                     <img src={Logo} alt="Logo" className="login-logo"/>
                 </div>
                 <div className="logo-buttons">
-                    {authUrl ? (
+                    {loading ? (
+                        <p>Loading...</p>
+                    ) : authUrl ? (
                         <DiscordLoginButton onClick={handleLogin}/>
                     ) : (
-                        <p>Loading...</p>
+                        <p>Unable to connect to authentication service.</p>
                     )}
                 </div>
             </div>

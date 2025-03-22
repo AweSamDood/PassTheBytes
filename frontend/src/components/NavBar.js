@@ -1,23 +1,24 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from "../services/apiClient";
+import authService from "../services/authService";
 import '../css/NavBar.css';
-import Logo from '../assets/Logo.png'; // Import the logo image
+import Logo from '../assets/Logo.png';
 
 const Navbar = ({ toggleTheme, isDarkMode, user }) => {
     const navigate = useNavigate();
+
+    // Add debugging for user object
+    console.log("NavBar - User object:", user);
+
     const handleLogout = () => {
-        apiClient.post('/logout')
-            .then(() => {
-                navigate('/'); // Redirect to login page
-            })
-            .catch((error) => console.error('Error logging out:', error));
+        authService.logout();
+        navigate('/'); // Redirect to login page
     };
 
     return (
         <nav className="navbar">
             <div className="brand-nav" onClick={() => navigate('/files')}>
-                <img src={Logo} alt="Logo" className="logo-nav" /> {/* Use the logo image */}
+                <img src={Logo} alt="Logo" className="logo-nav" />
             </div>
             <div>
                 {user && user.admin && (

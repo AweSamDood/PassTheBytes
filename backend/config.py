@@ -23,3 +23,6 @@ class Config:
     PREFERRED_URL_SCHEME = 'https'
     FRONTEND_URI = os.getenv('FRONTEND_URI', 'https://localhost:3000')
     MONITOR_SERVICE_URL = os.getenv('MONITOR_SERVICE_URL', 'http://localhost:61208/api/3/all')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-for-jwt')
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))  # 1 hour in seconds
+    JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 2592000))  # 30 days in seconds

@@ -4,9 +4,11 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Files from './pages/Files';
 import AdminDashboard from './pages/AdminDashboard';
+import AuthHandler from './components/AuthHandler';
 import './App.css';
 import PublicSharePage from "./pages/ShareFilePage";
 import apiClient from './services/apiClient';
+import authService from './services/authService';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
 import Icon from './assets/Icon.png';
 
@@ -39,10 +41,21 @@ function App() {
     }, [isDarkMode]);
 
     useEffect(() => {
-        apiClient.get('/user')
-            .then(response => {
-                setUser(response.data.user);
-            }).catch(err => console.error(err));
+        // Only fetch user data if authenticated
+        if (authService.isAuthenticated()) {
+            apiClient.get('/jwt/validate')
+                .then(response => {
+                    if (response.data.isAuthenticated) {
+                        console.log("User data from validate:", response.data.user);
+                        setUser(response.data.user);
+                    } else {
+                        authService.clearTokens();
+                    }
+                }).catch(err => {
+                console.error(err);
+                authService.clearTokens();
+            });
+        }
     }, []);
 
     return (
@@ -62,6 +75,7 @@ function App() {
                 <Router>
                     <Routes>
                         <Route path="/" element={<Login isDarkMode={isDarkMode}/>} />
+                        <Route path="/auth" element={<AuthHandler />} />
                         <Route
                             path="/files"
                             element={<Files toggleTheme={toggleTheme} isDarkMode={isDarkMode} user={user} />}

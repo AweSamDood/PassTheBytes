@@ -15,12 +15,26 @@ from backend.models import db
 from backend.servicies import services_bp
 from backend.share.shareFile import share_bp
 from backend.user import user_bp
+from backend.auth.jwt_auth import jwt_auth_bp
+from backend.security import init_security
+from backend.auth.oauth_check import oauth_check_bp
+from backend.auth.discord_test import discord_test_bp
+
 
 app = Flask(__name__)
+limiter = init_security(app)
+
 CORS(
     app,
     supports_credentials=True,
-    resources={r"/*": {"origins": "https://localhost:3000"}},
+    resources={r"/*": {
+        "origins": [
+            "https://localhost:3000",
+            "https://passthebytes.com"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }},
 )
 
 app.config.from_object(Config)
@@ -53,6 +67,17 @@ app.register_blueprint(share_bp, url_prefix='/api/share')
 app.register_blueprint(files_bp, url_prefix='/api')
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(services_bp, url_prefix='/api/services')
+app.register_blueprint(jwt_auth_bp, url_prefix='/api/jwt')
+# REMOVE IN PRODUCTION
+# app.register_blueprint(oauth_check_bp, url_prefix='/api/debug')
+# app.register_blueprint(discord_test_bp, url_prefix='/api/test')
+
+if limiter:
+    # Apply rate limits to sensitive endpoints
+    limiter.limit("5 per minute")(app.view_functions["jwt_auth.api_login"])
+    limiter.limit("5 per minute")(app.view_functions["jwt_auth.api_callback"])
+    limiter.limit("20 per minute")(app.view_functions["jwt_auth.api_refresh_token"])
+
 
 print(app.url_map)
 with app.app_context():
