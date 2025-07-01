@@ -10,6 +10,12 @@
 - [Development](#development)
 - [Roadmap](#roadmap)
 
+### Project Status
+
+**Note:** This is one of my earlier projects. It includes a variety of features like Discord authentication, file sharing, and a responsive UI. However, it does not have a formal CI/CD pipeline, automated testing, or security audits.
+
+For a more recent and mature example of my work, please see my **[passthebytes-tools](https://github.com/your-github/passthebytes-tools)** project, which features a full CI/CD pipeline with automated security scanning and deployment.
+
 ## Features
 
 ### Current Features
@@ -41,20 +47,35 @@
 ## Technology Stack
 
 ### Backend
-- **Framework:** Flask with Blueprints for modular code structure
-- **Database:** SQLite (default), with PostgreSQL support
+- **Framework:** Flask (Python) with Blueprints for modular code structure
+- **Database:** SQLite (default), with PostgreSQL support possible
 - **Authentication:** Discord OAuth2 and JWT
 - **Security:** Rate limiting, secure cookie configuration, content security policy
+- **Modules:**
+  - **auth/**: Authentication (OAuth, JWT)
+  - **core/**: File and directory operations
+  - **share/**: File sharing logic
+  - **user/**: User management
+  - **servicies/**: Background services (e.g., cleanup, server info)
+  - **uploads/**: User file storage
+  - **logs/**: Rotating file logs
 
 ### Frontend
-- **Framework:** React.js with Ant Design
+- **Framework:** React.js (JavaScript)
+- **UI Library:** Ant Design
 - **State Management:** React Hooks
-- **HTTP Client:** Axios with interceptors for token refresh
+- **HTTP Client:** Axios (with token refresh interceptors)
 - **Build Tool:** Create React App
+- **Structure:**
+  - **src/components/**: Reusable components
+  - **src/pages/**: Page-level components
+  - **src/services/**: API/auth logic
+  - **src/css/**: Styles
 
-### Infrastructure
+### Infrastructure & Deployment
 - **Development:** HTTPS with self-signed certificates
-- **Storage:** Local file system with organization by user ID and directories
+- **Deployment:** Docker and docker-compose files included for both backend and frontend
+- **Storage:** Local file system, organized by user ID and directories
 - **Logging:** Rotating file logs
 
 ## Installation
@@ -63,13 +84,14 @@
 - Python 3.10 or higher
 - Node.js and npm
 - Discord Developer Account (for OAuth2 credentials)
+- (Optional) Docker & Docker Compose for containerized deployment
 
 ### Backend Setup
 1. Clone the repository
 2. Create a virtual environment: `python -m venv venv`
 3. Activate the virtual environment:
-  - Windows: `venv\Scripts\activate`
-  - Mac/Linux: `source venv/bin/activate`
+   - Windows: `venv\Scripts\activate`
+   - Mac/Linux: `source venv/bin/activate`
 4. Install dependencies: `pip install -r requirements.txt`
 5. Create a `.env` file in the backend directory with the following variables:
    ```
@@ -92,31 +114,33 @@
    ```
 4. Start the frontend development server: `npm start`
 
+### Docker Deployment (Optional)
+- Use the provided `docker-compose.yml` files in the root and passthebytes-tools/ for production or development deployment.
+
 ## Development
 
-### Folder Structure
+### Folder Structure (Key Directories)
 - **backend/**: Flask backend API
   - **auth/**: Authentication modules
-  - **core/**: Core file operations
-  - **share/**: File sharing functionality
+  - **core/**: File and directory operations
+  - **share/**: File sharing
   - **user/**: User management
-  - **services/**: Background services
-
+  - **servicies/**: Background/utility services
+  - **uploads/**: User file storage
+  - **logs/**: Log files
 - **frontend/**: React frontend
   - **src/components/**: Reusable React components
   - **src/pages/**: Page components
-  - **src/services/**: API and authentication services
+  - **src/services/**: API/authentication services
   - **src/css/**: Stylesheets
 
 ## Roadmap
 
 ### Priority Features
-- **Additional OAuth Methods:** Implement additional authentication providers beyond Discord
-  - Google OAuth
-  - GitHub OAuth
-- **Directory Sharing:** Extend sharing capabilities to entire directories
-- **Expiring Share Links:** Add automatic expiration dates for shared files and directories
-- **Search Functionality:** Implement search within the current directory/folder
-- **File Preview:** Preview images and GIFs after successful password verification for password-protected shares
-- **Shared File Management:** User interface to view and manage all currently active shared files
-- **Download Experience:** Fix download timeout issues and improve download feedback
+- **Additional OAuth Methods:** Google, GitHub, etc.
+- **Directory Sharing:** Share entire directories
+- **Expiring Share Links:** Automatic expiration for shared files/directories
+- **Search Functionality:** Search within directories
+- **File Preview:** Preview images/GIFs for password-protected shares
+- **Shared File Management:** UI for managing active shares
+- **Download Experience:** Improve download reliability and feedback
